@@ -1,25 +1,9 @@
-import sys
-from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage, QDBusArgument
+import dbus
+import dbus.mainloop.glib
 from PySide6.QtCore import QObject, Signal, Slot
 
-def unpack(val, depth=0):
-    if depth > 10:
-        return str(val)
-    if isinstance(val, QDBusArgument):
-        inner = val.asVariant()
-        if isinstance(inner, QDBusArgument):
-            return str(inner)
-        return unpack(inner, depth + 1)
-    if isinstance(val, list):
-        return [unpack(i, depth + 1) for i in val]
-    if isinstance(val, tuple):
-        return tuple(unpack(i, depth + 1) for i in val)
-    if isinstance(val, dict):
-        return {k: unpack(v, depth + 1) for k, v in val.items()}
-    return val
-
 class SnapperInterface(QObject):
-    # Signals for external use
+    # Signals for external use (Qt signals)
     snapshotCreated = Signal(str, int)
     snapshotModified = Signal(str, int)
     snapshotsDeleted = Signal(str, list)
@@ -27,156 +11,181 @@ class SnapperInterface(QObject):
     configModified = Signal()
     configDeleted = Signal()
 
+    _instance = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
     def __init__(self):
         super().__init__()
-        self._bus = QDBusConnection.systemBus()
-        if not self._bus.isConnected():
-            # In some environments (like testing) DBus might not be available
-            pass
+        # Essential for dbus-python signals in a Qt app
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
-        self._interface = QDBusInterface(
-            "org.opensuse.Snapper",
-            "/org/opensuse/Snapper",
-            "org.opensuse.Snapper",
-            self._bus
-        )
+        self._iface = None
+        try:
+            self._bus = dbus.SystemBus()
+            self._obj = self._bus.get_object('org.opensuse.Snapper', '/org/opensuse/Snapper')
+            self._iface = dbus.Interface(self._obj, 'org.opensuse.Snapper')
 
-        # Connect D-Bus signals to our internal slots
-        # Signature: connect(service, path, interface, name, receiver, slot)
-        self._bus.connect(
-            "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotCreated", self, "handleSnapshotCreated(QString,uint)"
-        )
-        self._bus.connect(
-            "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotModified", self, "handleSnapshotModified(QString,uint)"
-        )
-        self._bus.connect(
-            "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotsDeleted", self, "handleSnapshotsDeleted(QString,QList<uint>)"
-        )
-        self._bus.connect(
-            "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigCreated", self, "handleConfigCreated(QString)"
-        )
-        self._bus.connect(
-            "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigModified", self, "handleConfigModified()"
-        )
-        self._bus.connect(
-            "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigDeleted", self, "handleConfigDeleted()"
-        )
+            # Connect DBus signals to internal handlers that emit Qt signals
+            self._bus.add_signal_receiver(
+                self._handle_snapshot_created,
+                signal_name="SnapshotCreated",
+                dbus_interface="org.opensuse.Snapper",
+                bus_name="org.opensuse.Snapper"
+            )
+            self._bus.add_signal_receiver(
+                self._handle_snapshot_modified,
+                signal_name="SnapshotModified",
+                dbus_interface="org.opensuse.Snapper",
+                bus_name="org.opensuse.Snapper"
+            )
+            self._bus.add_signal_receiver(
+                self._handle_snapshots_deleted,
+                signal_name="SnapshotsDeleted",
+                dbus_interface="org.opensuse.Snapper",
+                bus_name="org.opensuse.Snapper"
+            )
+            self._bus.add_signal_receiver(
+                self._handle_config_created,
+                signal_name="ConfigCreated",
+                dbus_interface="org.opensuse.Snapper",
+                bus_name="org.opensuse.Snapper"
+            )
+            self._bus.add_signal_receiver(
+                self._handle_config_modified,
+                signal_name="ConfigModified",
+                dbus_interface="org.opensuse.Snapper",
+                bus_name="org.opensuse.Snapper"
+            )
+            self._bus.add_signal_receiver(
+                self._handle_config_deleted,
+                signal_name="ConfigDeleted",
+                dbus_interface="org.opensuse.Snapper",
+                bus_name="org.opensuse.Snapper"
+            )
+        except Exception as e:
+            print(f"Error initializing DBus: {e}")
 
-    @Slot(str, int)
-    def handleSnapshotCreated(self, config, num):
-        self.snapshotCreated.emit(config, num)
-
-    @Slot(str, int)
-    def handleSnapshotModified(self, config, num):
-        self.snapshotModified.emit(config, num)
-
-    @Slot(str, list)
-    def handleSnapshotsDeleted(self, config, nums):
-        self.snapshotsDeleted.emit(config, list(nums))
-
-    @Slot(str)
-    def handleConfigCreated(self, config):
-        self.configCreated.emit(config)
-
-    @Slot()
-    def handleConfigModified(self):
-        self.configModified.emit()
-
-    @Slot()
-    def handleConfigDeleted(self):
-        self.configDeleted.emit()
+    def _native(self, obj):
+        """Recursively convert dbus types to Python native types"""
+        if isinstance(obj, dbus.String):
+            return str(obj)
+        if isinstance(obj, dbus.Boolean):
+            return bool(obj)
+        if isinstance(obj, (dbus.Int16, dbus.Int32, dbus.Int64,
+                            dbus.UInt16, dbus.UInt32, dbus.UInt64,
+                            dbus.Byte)):
+            return int(obj)
+        if isinstance(obj, dbus.Double):
+            return float(obj)
+        if isinstance(obj, (dbus.Array, list, tuple)):
+            return [self._native(i) for i in obj]
+        if isinstance(obj, (dbus.Dictionary, dict)):
+            return {self._native(k): self._native(v) for k, v in obj.items()}
+        if isinstance(obj, dbus.Struct):
+            return tuple(self._native(i) for i in obj)
+        return obj
 
     def _call(self, method, *args):
-        msg = self._interface.call(method, *args)
-        if msg.type() == QDBusMessage.MessageType.ErrorMessage:
-            raise Exception(f"Snapper DBus Error ({method}): {msg.errorMessage()}")
+        if not self._iface:
+            raise Exception("Snapper DBus interface not initialized")
+        try:
+            fn = getattr(self._iface, method)
+            result = fn(*args)
+            return self._native(result)
+        except Exception as e:
+            raise Exception(f"Snapper DBus Error ({method}): {e}")
 
-        res = msg.arguments()
-        if not res:
-            return None
-        if len(res) == 1:
-            return unpack(res[0])
-        return [unpack(a) for a in res]
+    # Internal handlers to relay signals to Qt
+    def _handle_snapshot_created(self, config, num):
+        self.snapshotCreated.emit(str(config), int(num))
+
+    def _handle_snapshot_modified(self, config, num):
+        self.snapshotModified.emit(str(config), int(num))
+
+    def _handle_snapshots_deleted(self, config, nums):
+        self.snapshotsDeleted.emit(str(config), [int(n) for n in nums])
+
+    def _handle_config_created(self, config):
+        self.configCreated.emit(str(config))
+
+    def _handle_config_modified(self):
+        self.configModified.emit()
+
+    def _handle_config_deleted(self):
+        self.configDeleted.emit()
 
     # API Methods
     def ListConfigs(self):
         try:
             raw = self._call('ListConfigs')
-        except Exception as e:
-            print(f"Error calling ListConfigs: {e}")
+            if not raw: return []
+            return [str(item[0]) for item in raw]
+        except:
             return []
-        if raw is None: return []
-        # raw is list of (name, subvolume, attrs)
-        if isinstance(raw, list) and len(raw) > 0 and isinstance(raw[0], (list, tuple)):
-             return [str(item[0]) for item in raw]
-        return []
 
     def ListSnapshots(self, config: str):
-        raw = self._call('ListSnapshots', str(config))
-        if raw is None: return []
-        return [tuple(item) for item in raw]
+        try:
+            raw = self._call('ListSnapshots', config)
+            return [tuple(item) for item in raw]
+        except:
+            return []
 
     def GetSnapshot(self, config: str, number: int):
-        res = self._call('GetSnapshot', str(config), int(number))
-        return tuple(res) if isinstance(res, (list, tuple)) else res
+        return tuple(self._call('GetSnapshot', config, dbus.UInt32(number)))
 
     def SetSnapshot(self, config: str, number: int, description: str, cleanup: str, userdata: dict):
-        self._call('SetSnapshot', str(config), int(number), str(description), str(cleanup), userdata)
+        self._call('SetSnapshot', config, dbus.UInt32(number), description, cleanup, userdata)
 
     def CreateSingleSnapshot(self, config: str, description: str, cleanup: str, userdata: dict) -> int:
-        return self._call('CreateSingleSnapshot', str(config), str(description), str(cleanup), userdata)
+        return self._call('CreateSingleSnapshot', config, description, cleanup, userdata)
 
     def CreateSingleSnapshotOfDefault(self, config: str, description: str, cleanup: str, userdata: dict) -> int:
-        return self._call('CreateSingleSnapshotOfDefault', str(config), str(description), str(cleanup), userdata)
+        return self._call('CreateSingleSnapshotOfDefault', config, description, cleanup, userdata)
 
     def CreatePreSnapshot(self, config: str, description: str, cleanup: str, userdata: dict) -> int:
-        return self._call('CreatePreSnapshot', str(config), str(description), str(cleanup), userdata)
+        return self._call('CreatePreSnapshot', config, description, cleanup, userdata)
 
     def CreatePostSnapshot(self, config: str, pre_num: int, description: str, cleanup: str, userdata: dict) -> int:
-        return self._call('CreatePostSnapshot', str(config), int(pre_num), str(description), str(cleanup), userdata)
+        return self._call('CreatePostSnapshot', config, dbus.UInt32(pre_num), description, cleanup, userdata)
 
     def DeleteSnapshots(self, config: str, ids: list):
-        self._call('DeleteSnapshots', str(config), [int(i) for i in ids])
+        self._call('DeleteSnapshots', config, dbus.Array([dbus.UInt32(i) for i in ids], signature='u'))
 
     def MountSnapshot(self, config: str, number: int, read_only: bool) -> str:
-        return self._call('MountSnapshot', str(config), int(number), bool(read_only))
+        return self._call('MountSnapshot', config, dbus.UInt32(number), dbus.Boolean(read_only))
 
     def UmountSnapshot(self, config: str, number: int, read_only: bool):
-        self._call('UmountSnapshot', str(config), int(number), bool(read_only))
+        self._call('UmountSnapshot', config, dbus.UInt32(number), dbus.Boolean(read_only))
 
     def GetMountPoint(self, config: str, number: int) -> str:
-        return self._call('GetMountPoint', str(config), int(number))
+        return self._call('GetMountPoint', config, dbus.UInt32(number))
 
     def CreateConfig(self, name: str, subvolume: str, fstype: str, template: str):
-        self._call('CreateConfig', str(name), str(subvolume), str(fstype), str(template))
+        self._call('CreateConfig', name, subvolume, fstype, template)
 
     def SetConfig(self, name: str, attrs: dict):
-        self._call('SetConfig', str(name), attrs)
+        self._call('SetConfig', name, attrs)
 
     def DeleteConfig(self, name: str):
-        self._call('DeleteConfig', str(name))
+        self._call('DeleteConfig', name)
 
     def GetConfig(self, name: str) -> dict:
-        res = self._call('GetConfig', str(name))
-        if isinstance(res, (list, tuple)) and len(res) == 3:
-            return {'name': res[0], 'subvolume': res[1], 'attrs': res[2]}
-        return {}
+        n, subvol, attrs = self._call('GetConfig', name)
+        return {'name': n, 'subvolume': subvol, 'attrs': attrs}
 
     def CreateComparison(self, config: str, begin: int, end: int) -> int:
-        return self._call('CreateComparison', str(config), int(begin), int(end))
+        return self._call('CreateComparison', config, dbus.UInt32(begin), dbus.UInt32(end))
 
     def DeleteComparison(self, config: str, begin: int, end: int):
-        self._call('DeleteComparison', str(config), int(begin), int(end))
+        self._call('DeleteComparison', config, dbus.UInt32(begin), dbus.UInt32(end))
 
     def GetFiles(self, config: str, begin: int, end: int) -> list:
-        raw = self._call('GetFiles', str(config), int(begin), int(end))
-        if raw is None: return []
+        raw = self._call('GetFiles', config, dbus.UInt32(begin), dbus.UInt32(end))
         return [{'name': path, 'status': status} for path, status in raw]
 
-snapper = SnapperInterface()
+snapper = SnapperInterface.get_instance()

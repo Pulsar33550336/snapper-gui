@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Property, Signal, Slot, QAbstractListModel, Qt, QModelIndex
+from PySide6.QtCore import QObject, Property, Signal, Slot, QAbstractListModel, QAbstractTableModel, Qt, QModelIndex
 from snappergui import snapper
 from time import strftime, localtime
 from pwd import getpwuid
@@ -29,7 +29,7 @@ class ConfigListModel(QAbstractListModel):
             self._configs = []
         self.endResetModel()
 
-class SnapshotModel(QAbstractListModel):
+class SnapshotModel(QAbstractTableModel):
     IDRole = Qt.UserRole + 1
     TypeRole = Qt.UserRole + 2
     PreIDRole = Qt.UserRole + 3
@@ -37,6 +37,8 @@ class SnapshotModel(QAbstractListModel):
     UserRole = Qt.UserRole + 5
     DescriptionRole = Qt.UserRole + 6
     CleanupRole = Qt.UserRole + 7
+
+    HEADERS = ["ID", "Type", "Pre ID", "Date", "User", "Description", "Cleanup"]
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -85,10 +87,25 @@ class SnapshotModel(QAbstractListModel):
     def rowCount(self, parent=QModelIndex()):
         return len(self._snapshots)
 
+    def columnCount(self, parent=QModelIndex()):
+        return len(self.HEADERS)
+
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid() or not (0 <= index.row() < len(self._snapshots)):
             return None
+
         s = self._snapshots[index.row()]
+        col = index.column()
+
+        if role == Qt.DisplayRole:
+            if col == 0: return str(s['id'])
+            if col == 1: return s['type']
+            if col == 2: return str(s['pre_id'])
+            if col == 3: return s['date']
+            if col == 4: return s['user']
+            if col == 5: return s['description']
+            if col == 6: return s['cleanup']
+
         if role == self.IDRole: return s['id']
         if role == self.TypeRole: return s['type']
         if role == self.PreIDRole: return s['pre_id']
@@ -98,16 +115,22 @@ class SnapshotModel(QAbstractListModel):
         if role == self.CleanupRole: return s['cleanup']
         return None
 
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+            if 0 <= section < len(self.HEADERS):
+                return self.HEADERS[section]
+        return None
+
     def roleNames(self):
-        return {
-            self.IDRole: b"snapshotId",
-            self.TypeRole: b"snapshotType",
-            self.PreIDRole: b"snapshotPreId",
-            self.DateRole: b"snapshotDate",
-            self.UserRole: b"snapshotUser",
-            self.DescriptionRole: b"snapshotDescription",
-            self.CleanupRole: b"snapshotCleanup"
-        }
+        roles = super().roleNames()
+        roles[self.IDRole] = b"snapshotId"
+        roles[self.TypeRole] = b"snapshotType"
+        roles[self.PreIDRole] = b"snapshotPreId"
+        roles[self.DateRole] = b"snapshotDate"
+        roles[self.UserRole] = b"snapshotUser"
+        roles[self.DescriptionRole] = b"snapshotDescription"
+        roles[self.CleanupRole] = b"snapshotCleanup"
+        return roles
 
     @Slot(int)
     def getUserdata(self, row):

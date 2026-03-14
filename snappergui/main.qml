@@ -48,21 +48,18 @@ ApplicationWindow {
 
             model: snapper.snapshots
 
+            selectionModel: ItemSelectionModel {
+                model: snapper.snapshots
+            }
+
             delegate: Rectangle {
                 implicitHeight: 30
+                implicitWidth: 100
                 color: snapshotView.currentRow === row ? "lightblue" : "white"
+                border.color: "#eee"
                 Text {
                     anchors.centerIn: parent
-                    text: {
-                        if (column === 0) return model.snapshotId
-                        if (column === 1) return model.snapshotType
-                        if (column === 2) return model.snapshotPreId
-                        if (column === 3) return model.snapshotDate
-                        if (column === 4) return model.snapshotUser
-                        if (column === 5) return model.snapshotDescription
-                        if (column === 6) return model.snapshotCleanup
-                        return ""
-                    }
+                    text: display
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -75,10 +72,16 @@ ApplicationWindow {
 
         ColumnLayout {
             SplitView.preferredHeight: 200
-            Text { text: "Userdata"; font.bold: true }
+            Text {
+                text: "Userdata"
+                font.bold: true
+                Layout.leftMargin: 10
+                Layout.topMargin: 5
+            }
             ListView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.leftMargin: 10
                 model: snapshotView.currentRow >= 0 ? snapper.snapshots.getUserdata(snapshotView.currentRow) : []
                 delegate: RowLayout {
                     Text { text: modelData.key + ":"; font.bold: true }

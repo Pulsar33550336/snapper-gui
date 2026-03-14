@@ -1,5 +1,5 @@
 from snappergui import snapper
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QSpinBox, QCheckBox, QTabWidget,
                              QScrollArea, QWidget, QGridLayout, QGroupBox,
                              QDialogButtonBox, QMessageBox)
@@ -13,10 +13,10 @@ class PropertiesTab(QWidget):
         self.scroll.setWidgetResizable(True)
         self.content = QWidget()
         self.grid = QGridLayout(self.content)
-
+        
         self.widgets = {}
         settings = config_data[2]
-
+        
         row = 0
         # Basic Settings
         self.add_setting("SUBVOLUME", "Subvolume", settings.get("SUBVOLUME", ""), row, 0)
@@ -27,7 +27,7 @@ class PropertiesTab(QWidget):
         row += 1
         self.add_bool_setting("TIMELINE_CREATE", "Timeline Create", settings.get("TIMELINE_CREATE", "no"), row, 0)
         row += 1
-
+        
         # Timeline Group
         timeline_group = QGroupBox("Timeline Cleanup")
         timeline_grid = QGridLayout(timeline_group)
@@ -40,7 +40,7 @@ class PropertiesTab(QWidget):
         self.add_spin_setting("TIMELINE_MIN_AGE", "Min. Age", settings.get("TIMELINE_MIN_AGE", "0"), 3, 2, timeline_grid)
         self.grid.addWidget(timeline_group, row, 0, 1, 4)
         row += 1
-
+        
         # Number Group
         number_group = QGroupBox("Number Cleanup")
         number_grid = QGridLayout(number_group)
@@ -50,7 +50,7 @@ class PropertiesTab(QWidget):
         self.add_spin_setting("NUMBER_MIN_AGE", "Min. Age", settings.get("NUMBER_MIN_AGE", "0"), 2, 0, number_grid)
         self.grid.addWidget(number_group, row, 0, 1, 4)
         row += 1
-
+        
         # Empty Pre/Post Group
         empty_group = QGroupBox("Empty Pre/Post Cleanup")
         empty_grid = QGridLayout(empty_group)
@@ -58,11 +58,11 @@ class PropertiesTab(QWidget):
         self.add_spin_setting("EMPTY_PRE_POST_MIN_AGE", "Min. Age", settings.get("EMPTY_PRE_POST_MIN_AGE", "0"), 1, 0, empty_grid)
         self.grid.addWidget(empty_group, row, 0, 1, 4)
         row += 1
-
+        
         # Misc
         self.add_bool_setting("BACKGROUND_COMPARISON", "Backg. Comparison", settings.get("BACKGROUND_COMPARISON", "no"), row, 0)
         self.add_bool_setting("SYNC_ACL", "Sync Acl", settings.get("SYNC_ACL", "no"), row, 2)
-
+        
         self.scroll.setWidget(self.content)
         self.layout.addWidget(self.scroll)
 
@@ -103,10 +103,10 @@ class propertiesDialog(QDialog):
         self.setWindowTitle("Configurations properties")
         self.resize(600, 500)
         self.layout = QVBoxLayout(self)
-
+        
         self.tabs = QTabWidget()
         self.layout.addWidget(self.tabs)
-
+        
         self.tab_widgets = {}
         configs = snapper.ListConfigs()
         for config in configs:
@@ -114,7 +114,7 @@ class propertiesDialog(QDialog):
             tab = PropertiesTab(config)
             self.tabs.addTab(tab, name)
             self.tab_widgets[name] = tab
-
+            
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.button_box.accepted.connect(self.on_accept)
         self.button_box.rejected.connect(self.reject)
@@ -127,9 +127,9 @@ class propertiesDialog(QDialog):
             if str(c[0]) == config_name:
                 current_config = c
                 break
-
+        
         if not current_config: return changed
-
+        
         tab = self.tab_widgets[config_name]
         for k, v in current_config[2].items():
             if k in tab.widgets:

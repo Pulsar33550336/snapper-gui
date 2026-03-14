@@ -63,25 +63,25 @@ class changesWindow(QMainWindow):
         # Right: File View and controls
         self.right_widget = QWidget()
         self.right_layout = QVBoxLayout(self.right_widget)
-
+        
         # View selection
         self.controls_layout = QHBoxLayout()
         self.btn_group = QButtonGroup(self)
-
+        
         self.rb_begin = QRadioButton(str(self.snapshot_begin))
         self.rb_diff = QRadioButton("Diff")
         self.rb_end = QRadioButton(str(self.snapshot_end))
         self.rb_diff.setChecked(True)
-
+        
         self.btn_group.addButton(self.rb_begin, 0)
         self.btn_group.addButton(self.rb_diff, 1)
         self.btn_group.addButton(self.rb_end, 2)
-
+        
         self.controls_layout.addWidget(self.rb_begin)
         self.controls_layout.addWidget(self.rb_diff)
         self.controls_layout.addWidget(self.rb_end)
         self.btn_group.idClicked.connect(self.on_view_mode_changed)
-
+        
         self.right_layout.addLayout(self.controls_layout)
 
         # Text View
@@ -89,7 +89,7 @@ class changesWindow(QMainWindow):
         self.fileview.setReadOnly(True)
         self.fileview.setFont(QFont("Monospace", 10))
         self.right_layout.addWidget(self.fileview)
-
+        
         self.splitter.addWidget(self.right_widget)
 
         # Statusbar
@@ -100,11 +100,11 @@ class changesWindow(QMainWindow):
         self.statusbar.showMessage("Loading changes...")
         snapper.CreateComparison(self.config, self.snapshot_begin, self.snapshot_end)
         dbus_array = snapper.GetFiles(self.config, self.snapshot_begin, self.snapshot_end)
-
+        
         files_tree = changesWindow.TreeNode("/", {}, 0, True)
         for entry in dbus_array:
             self.add_path_to_tree(str(entry[0]), int(entry[1]), files_tree)
-
+            
         self.populate_path_model(files_tree)
         self.statusbar.showMessage(f"{len(dbus_array)} files changed.")
         snapper.DeleteComparison(self.config, self.snapshot_begin, self.snapshot_end)
@@ -117,7 +117,7 @@ class changesWindow(QMainWindow):
             if part not in node.children:
                 node.children[part] = changesWindow.TreeNode("", {}, 0, True)
             node = node.children[part]
-
+        
         last_part = parts[-1]
         if is_dir:
             node.children[last_part] = changesWindow.TreeNode("", {}, status, True)
@@ -127,16 +127,16 @@ class changesWindow(QMainWindow):
     def populate_path_model(self, tree, parent_item=None):
         if parent_item is None:
             parent_item = self.path_model.invisibleRootItem()
-
+            
         # Sort children: directories first, then alphabetically
         sorted_names = sorted(tree.children.keys(), key=lambda n: (not tree.children[n].is_dir, n))
-
+        
         for name in sorted_names:
             child = tree.children[name]
             item = QStandardItem(name)
             item.setData(child.path, Qt.UserRole)
             item.setToolTip(self.file_status_to_string(child.status))
-
+            
             # Color coding
             if child.status & StatusFlags.CREATED:
                 item.setForeground(QColor(0, 145, 0)) # Green
@@ -144,7 +144,7 @@ class changesWindow(QMainWindow):
                 item.setForeground(QColor(153, 0, 0)) # Red
             elif child.status > 0:
                 item.setForeground(QColor(125, 120, 0)) # Yellow-ish
-
+                
             parent_item.appendRow(item)
             if child.is_dir and child.children:
                 self.populate_path_model(child, item)
@@ -175,19 +175,19 @@ class changesWindow(QMainWindow):
         if not selection:
             self.fileview.clear()
             return
-
+            
         index = selection[0]
         rel_path = index.data(Qt.UserRole)
         if not rel_path: # Directory
             self.fileview.clear()
             return
-
+            
         fromfile = self.beginpath + rel_path
         tofile = self.endpath + rel_path
-
+        
         fromlines = self.get_lines_from_file(fromfile)
         tolines = self.get_lines_from_file(tofile)
-
+        
         mode = self.btn_group.checkedId()
         if mode == 0: # Begin
             self.fileview.setPlainText("".join(fromlines) if fromlines else "")
@@ -196,10 +196,10 @@ class changesWindow(QMainWindow):
         else: # Diff
             if fromlines is None: fromlines = []
             if tolines is None: tolines = []
-
+            
             fromdate = time.ctime(os.stat(fromfile).st_mtime) if os.path.exists(fromfile) else ""
             todate = time.ctime(os.stat(tofile).st_mtime) if os.path.exists(tofile) else ""
-
+            
             diff = difflib.unified_diff(
                 fromlines, tolines,
                 fromfile=fromfile, tofile=tofile,

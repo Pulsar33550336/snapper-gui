@@ -12,14 +12,14 @@ class createSnapshot(QDialog):
         super(createSnapshot, self).__init__(parent)
         self.setWindowTitle("Create Snapshot")
         self.resize(400, 300)
-
+        
         self.layout = QVBoxLayout(self)
-
+        
         # Config
         self.layout.addWidget(QLabel("Configuration:"))
         self.configs_combo = QComboBox()
         self.layout.addWidget(self.configs_combo)
-
+        
         configs = snapper.ListConfigs()
         for i, config in enumerate(configs):
             name = str(config[0])
@@ -31,13 +31,13 @@ class createSnapshot(QDialog):
         self.layout.addWidget(QLabel("Description:"))
         self.description_edit = QLineEdit()
         self.layout.addWidget(self.description_edit)
-
+        
         # Cleanup
         self.layout.addWidget(QLabel("Cleanup Algorithm:"))
         self.cleanup_combo = QComboBox()
         self.cleanup_combo.addItems(["None", "number", "timeline", "empty-pre-post"])
         self.layout.addWidget(self.cleanup_combo)
-
+        
         # Userdata
         self.layout.addWidget(QLabel("Userdata:"))
         self.userdata_tree = QTreeView()
@@ -45,7 +45,7 @@ class createSnapshot(QDialog):
         self.userdata_model.setHorizontalHeaderLabels(["Key", "Value"])
         self.userdata_tree.setModel(self.userdata_model)
         self.layout.addWidget(self.userdata_tree)
-
+        
         self.userdata_model.appendRow([QStandardItem(self.TYPE_HERE), QStandardItem("")])
         self.userdata_model.itemChanged.connect(self.on_item_changed)
 
@@ -64,16 +64,16 @@ class createSnapshot(QDialog):
     @property
     def config(self):
         return self.configs_combo.currentText()
-
+        
     @property
     def description(self):
         return self.description_edit.text()
-
+        
     @property
     def cleanup(self):
         c = self.cleanup_combo.currentText()
         return "" if c == "None" else c
-
+        
     @property
     def userdata(self):
         data = {}

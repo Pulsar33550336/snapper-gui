@@ -10,23 +10,23 @@ class deleteDialog(QDialog):
         self.setWindowTitle("Delete Snapshots")
         self.resize(400, 300)
         self.layout = QVBoxLayout(self)
-
+        
         self.layout.addWidget(QLabel("Select snapshots to delete:"))
-
+        
         self.treeview = QTreeView()
         self.model = QStandardItemModel(0, 4)
         self.model.setHorizontalHeaderLabels(["Delete", "ID", "User", "Description"])
         self.treeview.setModel(self.model)
         self.layout.addWidget(self.treeview)
-
+        
         self.to_delete = list(snapshots)
-
+        
         parents = {}
         for snap_id in snapshots:
             try:
                 snapinfo = snapper.GetSnapshot(config, snap_id)
                 items = self.get_row_items(snapinfo)
-
+                
                 if snapinfo[1] == 1: # Pre
                     self.model.appendRow(items)
                     parents[snap_id] = items[0]
@@ -43,7 +43,7 @@ class deleteDialog(QDialog):
 
         self.treeview.expandAll()
         self.model.itemChanged.connect(self.on_item_changed)
-
+        
         # Buttons
         self.button_box = QDialogButtonBox(QDialogButtonBox.Yes | QDialogButtonBox.No)
         self.button_box.accepted.connect(self.accept)
@@ -55,12 +55,12 @@ class deleteDialog(QDialog):
         check_item.setCheckable(True)
         check_item.setCheckState(Qt.Checked)
         check_item.setData(snapinfo[0], Qt.UserRole)
-
+        
         try:
             user = getpwuid(snapinfo[4])[0]
         except:
             user = str(snapinfo[4])
-
+            
         return [
             check_item,
             QStandardItem(str(snapinfo[0])),

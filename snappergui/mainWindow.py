@@ -1,7 +1,7 @@
 import subprocess
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QToolBar, QStatusBar, QTabWidget, QTreeView,
-                             QSplitter, QGroupBox, QLabel, QToolButton,
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+                             QToolBar, QStatusBar, QTabWidget, QTreeView, 
+                             QSplitter, QGroupBox, QLabel, QToolButton, 
                              QMenu, QSizePolicy)
 from PySide6.QtGui import QAction, QIcon, QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, Slot
@@ -25,7 +25,7 @@ class SnapperGUI(QMainWindow):
 
         self.setup_ui()
         self.init_dbus_signal_handlers()
-
+        
         self.load_configs()
 
     def setup_ui(self):
@@ -101,17 +101,44 @@ class SnapperGUI(QMainWindow):
         self.update_controlls_and_userdatatreeview()
 
     def load_configs(self):
-        configs = snapper.ListConfigs()
-        if configs:
+        """Load snapper configurations"""
+        try:
+            configs = snapper.ListConfigs()
+            print(f"Configs loaded: {configs}")
+
+            # 处理不同返回格式
+            if not configs:
+                return
+
+            # 确保configs是列表
+            if not isinstance(configs, list):
+                configs = [configs]
+
             for config in configs:
-                name = str(config[0])
-                view = snapshotsView(name)
-                self.configView[name] = view
-                self.tabs.addTab(view, name)
-                view.selectionModel().selectionChanged.connect(self.on_snapshots_selection_changed)
+                # 处理config可能是字符串、列表或元组的情况
+                if isinstance(config, (list, tuple)):
+                    # 如果是列表/元组，取第一个元素作为配置名
+                    name = str(config[0]) if config else ""
+                else:
+                    # 如果是字符串，直接使用
+                    name = str(config)
+
+                if name:  # 确保配置名不为空
+                    view = snapshotsView(name)
+                    self.configView[name] = view
+                    self.tabs.addTab(view, name)
+                    view.selectionModel().selectionChanged.connect(
+                        self.on_snapshots_selection_changed
+                    )
+        except Exception as e:
+            print(f"Error loading configs: {e}")
 
     def get_current_config(self):
-        return self.tabs.tabText(self.tabs.currentIndex())
+        """Get current selected configuration name"""
+        current_index = self.tabs.currentIndex()
+        if current_index >= 0:
+            return self.tabs.tabText(current_index)
+        return ""
 
     def on_stack_visible_child_changed(self, index):
         self.update_controlls_and_userdatatreeview()
@@ -148,15 +175,29 @@ class SnapperGUI(QMainWindow):
         else:
             self.action_changes.setEnabled(False)
 
+        # 更新userdata
         self.userdata_model.clear()
         if len(selected_rows) == 1:
             try:
                 snapshot_id = view.model().data(selected_rows[0], Qt.UserRole)
                 snapshot_data = snapper.GetSnapshot(config, snapshot_id)
-                # snapshot_data[7] is userdata dict
-                userdata = snapshot_data[7]
-                for key, value in userdata.items():
-                    self.userdata_model.appendRow([QStandardItem(str(key)), QStandardItem(str(value))])
+
+                # 处理snapshot_data可能是不同格式的情况
+                userdata = {}
+                if isinstance(snapshot_data, (list, tuple)) and len(snapshot_data) > 7:
+                    # 如果是列表/元组，第8个元素是userdata
+                    userdata = snapshot_data[7] if len(snapshot_data) > 7 else {}
+                elif isinstance(snapshot_data, dict):
+                    # 如果是字典，直接取userdata字段
+                    userdata = snapshot_data.get('userdata', {})
+
+                # 显示userdata
+                if isinstance(userdata, dict):
+                    for key, value in userdata.items():
+                        self.userdata_model.appendRow([
+                            QStandardItem(str(key)),
+                            QStandardItem(str(value))
+                        ])
             except Exception as e:
                 print(f"Error loading userdata: {e}")
 
@@ -180,7 +221,7 @@ class SnapperGUI(QMainWindow):
         config = self.get_current_config()
         view = self.configView[config]
         selected_rows = view.selectionModel().selectedRows()
-
+        
         snapshots = []
         for index in selected_rows:
             snap_id = view.model().data(index, Qt.UserRole)
@@ -192,7 +233,7 @@ class SnapperGUI(QMainWindow):
                     child_id = view.model().data(view.model().index(i, 0, index), Qt.UserRole)
                     if child_id not in snapshots:
                         snapshots.append(child_id)
-
+        
         if snapshots:
             dialog = deleteDialog(self, config, snapshots)
             if dialog.exec() and dialog.to_delete:
@@ -210,7 +251,7 @@ class SnapperGUI(QMainWindow):
             snapshot_data = snapper.GetSnapshot(config, snap_id)
             if snapshot_data[6] != '':
                  snapper.MountSnapshot(config, snap_id, 'true')
-
+            
             subprocess.Popen(['xdg-open', mountpoint])
             self.statusbar.showMessage("The mount point for the snapshot %s from %s is %s" %
                                       (snap_id, config, mountpoint))
@@ -219,7 +260,7 @@ class SnapperGUI(QMainWindow):
         config = self.get_current_config()
         view = self.configView[config]
         selected_rows = view.selectionModel().selectedRows()
-
+        
         if len(selected_rows) > 1:
             begin = view.model().data(selected_rows[0], Qt.UserRole)
             end = view.model().data(selected_rows[-1], Qt.UserRole)
@@ -234,6 +275,13 @@ class SnapperGUI(QMainWindow):
                 self.changes_win.show()
 
     def init_dbus_signal_handlers(self):
+        """Initialize DBus signal connections"""
+        # 暂时禁用信号连接直到DBus问题解决
+        print("DBus signals temporarily disabled")
+        return
+
+        # 原来的代码注释掉
+        """
         signals = {
             "SnapshotCreated": b"on_dbus_snapshot_created(QString,int)",
             "SnapshotModified": b"on_dbus_snapshot_modified(QString,int)",
@@ -244,6 +292,7 @@ class SnapperGUI(QMainWindow):
         }
         for sig, slot in signals.items():
             snapper.connect_to_signal(sig, self, slot)
+        """
 
     @Slot(str, int)
     def on_dbus_snapshot_created(self, config, snapshot):

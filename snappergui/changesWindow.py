@@ -1,219 +1,215 @@
+import os
+import time
+import difflib
+import collections
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                             QTreeView, QTextEdit, QStatusBar, QSplitter,
+                             QLabel, QRadioButton, QButtonGroup)
+from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor, QFont
+from PySide6.QtCore import Qt, QTimer
+
 from snappergui import snapper
-import pkg_resources, os, time, difflib, collections
-from gi.repository import Gtk, GtkSource, GObject, Gdk
 
+class StatusFlags:
+    CREATED     =   1
+    DELETED     =   2
+    TYPE        =   4
+    CONTENT     =   8
+    PERMISSIONS =  16
+    OWNER       =  32
+    GROUP       =  64
+    XATTRS      = 128
+    ACL         = 256
 
-class StatusFlags(object):
-    """File status flags from https://github.com/openSUSE/snapper/blob/master/snapper/File.h#L39-L51"""
-
-    # @formatter:off
-    CREATED     =   1  # created
-    DELETED     =   2  # deleted
-    TYPE        =   4  # type has changed
-    CONTENT     =   8  # content has changed
-    PERMISSIONS =  16  # permissions have changed, see chmod(2)
-    OWNER       =  32  # owner has changed, see chown(2)
-    USER        =  32  # deprecated - alias for OWNER
-    GROUP       =  64  # group has changed, see chown(2)
-    XATTRS      = 128  # extended attributes changed, see attr(5)
-    ACL         = 256  # access control list changed, see acl(5)
-    # @formatter:on
-
-
-class changesWindow(object):
-    """docstring for changesWindow"""
-
+class changesWindow(QMainWindow):
     TreeNode = collections.namedtuple("TreeNode", "path, children, status, is_dir")
 
     def __init__(self, config, begin, end):
         super(changesWindow, self).__init__()
-        builder = Gtk.Builder()
-        GObject.type_register(GtkSource.View)
-        builder.add_from_file(pkg_resources.resource_filename("snappergui",
-                                                              "glade/changesWindow.glade"))
+        self.setWindowTitle(f"Changes: {begin} -> {end}")
+        self.resize(800, 600)
 
-        builder.get_object("titlelabel").set_text("%s -> %s" % (begin, end))
-        self.window = builder.get_object("changesWindow")
-        self.statusbar = builder.get_object("statusbar1")
-        self.pathstreeview = builder.get_object("pathstreeview")
-        self.fileview = builder.get_object("fileview")
-        self.choicesviewgroup = builder.get_object("actiongroup")
-        builder.connect_signals(self)
-
-        # save mountpoints for begin and end snapshots
-        self.beginpath = snapper.GetMountPoint(config, begin)
-        self.endpath = snapper.GetMountPoint(config, end)
         self.config = config
         self.snapshot_begin = begin
         self.snapshot_end = end
+        self.beginpath = snapper.GetMountPoint(config, begin)
+        self.endpath = snapper.GetMountPoint(config, end)
 
-        self.choicesviewgroup.get_action("begin").set_label(str(begin))
-        self.choicesviewgroup.get_action("end").set_label(str(end))
+        self.setup_ui()
+        QTimer.singleShot(0, self.load_changes)
 
-        self.sourcebuffer = GtkSource.Buffer()
-        self.fileview.set_buffer(self.sourcebuffer)
+    def setup_ui(self):
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
 
-        self.window.show_all()
-        GObject.idle_add(self.on_idle_init_paths_tree)
+        # Title Label
+        self.title_label = QLabel(f"{self.snapshot_begin} -> {self.snapshot_end}")
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.main_layout.addWidget(self.title_label)
 
-    def add_path_to_tree(self, path, status, tree):
-        is_dir = os.path.isdir(self.beginpath + path) or os.path.isdir(self.endpath + path)
-        parts = path.split('/')
-        node = tree
-        # Add directories to tree
-        for file_name in parts[1:-1]:
-            if not file_name in node.children:
-                node.children[file_name] = changesWindow.TreeNode("", {}, 0, True)
-            node = node.children[file_name]
-        # Add last part of path to tree
-        if is_dir:
-            node.children[parts[-1]] = changesWindow.TreeNode("", {}, status, True)
-        else:
-            node.children[parts[-1]] = changesWindow.TreeNode(path, None, status, False)
+        # Splitter
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.main_layout.addWidget(self.splitter)
 
-    def print_tree(self, tree, indent=""):
-        for name, child in tree.children.items():
-            print(indent + name + ("/" if child.is_dir else "") + "   (" +
-                  self.file_status_to_string(child.status) + ")")
-            if child.is_dir:
-                self.print_tree(child, indent + "    ")
+        # Left: Paths Tree
+        self.pathstreeview = QTreeView()
+        self.path_model = QStandardItemModel()
+        self.path_model.setHorizontalHeaderLabels(["Name"])
+        self.pathstreeview.setModel(self.path_model)
+        self.pathstreeview.selectionModel().selectionChanged.connect(self.on_selection_changed)
+        self.splitter.addWidget(self.pathstreeview)
 
-    def file_status_to_string(self, status):
-        if status & StatusFlags.CREATED:  # Created file
-            return "Created"
-        elif status & StatusFlags.DELETED:  # Deleted file
-            return "Deleted"
-        elif status > 0:  # Modified file
-            modification_types = {
-                StatusFlags.ACL: "acl",
-                StatusFlags.CONTENT: "content",
-                StatusFlags.GROUP: "group",
-                StatusFlags.OWNER: "owner",
-                StatusFlags.XATTRS: "xattrs",
-                StatusFlags.TYPE: "inode type",
-                StatusFlags.PERMISSIONS: "permissions"
-            }
-            modified_list = []
-            for flag, name in modification_types.items():
-                if status & flag:
-                    modified_list.append(name)
-            return "Modified: " + ", ".join(modified_list)
-        else:
-            return "No changes"
+        # Right: File View and controls
+        self.right_widget = QWidget()
+        self.right_layout = QVBoxLayout(self.right_widget)
 
-    def get_treestore_from_tree(self, tree):
-        # Row: [gtk-stock-icon, file name, file complete path, entry color, tooltip]
-        treestore = Gtk.TreeStore(str, str, str, Gdk.RGBA, str)
+        # View selection
+        self.controls_layout = QHBoxLayout()
+        self.btn_group = QButtonGroup(self)
 
-        def get_children(subtree, parent=None):
-            for file_name, child in subtree.children.items():
-                color = Gdk.RGBA(0.0, 0.0, 0.0)
-                if child.status & StatusFlags.CREATED:  # Created file
-                    color = Gdk.RGBA(0.0, 0.57, 0.0)
-                elif child.status & StatusFlags.DELETED:  # Deleted file
-                    color = Gdk.RGBA(0.6, 0.0, 0.0)
-                elif child.status > 0:  # Modified file
-                    color = Gdk.RGBA(0.49, 0.47, 0.0)
+        self.rb_begin = QRadioButton(str(self.snapshot_begin))
+        self.rb_diff = QRadioButton("Diff")
+        self.rb_end = QRadioButton(str(self.snapshot_end))
+        self.rb_diff.setChecked(True)
 
-                node = treestore.append(parent, [
-                    Gtk.STOCK_DIRECTORY if child.is_dir else Gtk.STOCK_FILE,
-                    file_name, child.path, color, self.file_status_to_string(child.status)
-                ])
-                # if this child is a directory get childs
-                if child.children is not None:
-                    get_children(child, node)
+        self.btn_group.addButton(self.rb_begin, 0)
+        self.btn_group.addButton(self.rb_diff, 1)
+        self.btn_group.addButton(self.rb_end, 2)
 
-        get_children(tree)
-        return treestore
+        self.controls_layout.addWidget(self.rb_begin)
+        self.controls_layout.addWidget(self.rb_diff)
+        self.controls_layout.addWidget(self.rb_end)
+        self.btn_group.idClicked.connect(self.on_view_mode_changed)
 
-    def on_query_tooltip(self, widget, x, y, keyboard_tip, tooltip):
-        if not widget.get_tooltip_context(x, y, keyboard_tip):
-            return False
-        else:
-            on_row, x, y, model, path, it = widget.get_tooltip_context(x, y, keyboard_tip)
-            if on_row:
-                tooltip.set_text(model[it][4])
-                widget.set_tooltip_row(tooltip, path)
-                return True
-            else:
-                return False
+        self.right_layout.addLayout(self.controls_layout)
 
-    def on_idle_init_paths_tree(self):
+        # Text View
+        self.fileview = QTextEdit()
+        self.fileview.setReadOnly(True)
+        self.fileview.setFont(QFont("Monospace", 10))
+        self.right_layout.addWidget(self.fileview)
+
+        self.splitter.addWidget(self.right_widget)
+
+        # Statusbar
+        self.statusbar = QStatusBar()
+        self.setStatusBar(self.statusbar)
+
+    def load_changes(self):
+        self.statusbar.showMessage("Loading changes...")
         snapper.CreateComparison(self.config, self.snapshot_begin, self.snapshot_end)
-
         dbus_array = snapper.GetFiles(self.config, self.snapshot_begin, self.snapshot_end)
 
-        # create structure to sort paths into tree
         files_tree = changesWindow.TreeNode("/", {}, 0, True)
         for entry in dbus_array:
             self.add_path_to_tree(str(entry[0]), int(entry[1]), files_tree)
 
-        # self.print_tree(files_tree)
-        self.pathstreeview.set_model(self.get_treestore_from_tree(files_tree))
-        # self.pathstreeview.expand_all()
-
-        # display in statusbar how many files have changed
-        self.statusbar.push(1, "%d files" % len(dbus_array))
-
+        self.populate_path_model(files_tree)
+        self.statusbar.showMessage(f"{len(dbus_array)} files changed.")
         snapper.DeleteComparison(self.config, self.snapshot_begin, self.snapshot_end)
 
-        # we dont want this function to be called anymore
-        return False
+    def add_path_to_tree(self, path, status, tree):
+        is_dir = os.path.isdir(self.beginpath + path) or os.path.isdir(self.endpath + path)
+        parts = path.lstrip('/').split('/')
+        node = tree
+        for part in parts[:-1]:
+            if part not in node.children:
+                node.children[part] = changesWindow.TreeNode("", {}, 0, True)
+            node = node.children[part]
+
+        last_part = parts[-1]
+        if is_dir:
+            node.children[last_part] = changesWindow.TreeNode("", {}, status, True)
+        else:
+            node.children[last_part] = changesWindow.TreeNode(path, None, status, False)
+
+    def populate_path_model(self, tree, parent_item=None):
+        if parent_item is None:
+            parent_item = self.path_model.invisibleRootItem()
+
+        # Sort children: directories first, then alphabetically
+        sorted_names = sorted(tree.children.keys(), key=lambda n: (not tree.children[n].is_dir, n))
+
+        for name in sorted_names:
+            child = tree.children[name]
+            item = QStandardItem(name)
+            item.setData(child.path, Qt.UserRole)
+            item.setToolTip(self.file_status_to_string(child.status))
+
+            # Color coding
+            if child.status & StatusFlags.CREATED:
+                item.setForeground(QColor(0, 145, 0)) # Green
+            elif child.status & StatusFlags.DELETED:
+                item.setForeground(QColor(153, 0, 0)) # Red
+            elif child.status > 0:
+                item.setForeground(QColor(125, 120, 0)) # Yellow-ish
+
+            parent_item.appendRow(item)
+            if child.is_dir and child.children:
+                self.populate_path_model(child, item)
+
+    def file_status_to_string(self, status):
+        if status & StatusFlags.CREATED: return "Created"
+        if status & StatusFlags.DELETED: return "Deleted"
+        if status > 0:
+            mods = []
+            if status & StatusFlags.ACL: mods.append("acl")
+            if status & StatusFlags.CONTENT: mods.append("content")
+            if status & StatusFlags.GROUP: mods.append("group")
+            if status & StatusFlags.OWNER: mods.append("owner")
+            if status & StatusFlags.XATTRS: mods.append("xattrs")
+            if status & StatusFlags.TYPE: mods.append("inode type")
+            if status & StatusFlags.PERMISSIONS: mods.append("permissions")
+            return "Modified: " + ", ".join(mods)
+        return "No changes"
+
+    def on_selection_changed(self, selected, deselected):
+        self.update_file_view()
+
+    def on_view_mode_changed(self, id):
+        self.update_file_view()
+
+    def update_file_view(self):
+        selection = self.pathstreeview.selectionModel().selectedRows()
+        if not selection:
+            self.fileview.clear()
+            return
+
+        index = selection[0]
+        rel_path = index.data(Qt.UserRole)
+        if not rel_path: # Directory
+            self.fileview.clear()
+            return
+
+        fromfile = self.beginpath + rel_path
+        tofile = self.endpath + rel_path
+
+        fromlines = self.get_lines_from_file(fromfile)
+        tolines = self.get_lines_from_file(tofile)
+
+        mode = self.btn_group.checkedId()
+        if mode == 0: # Begin
+            self.fileview.setPlainText("".join(fromlines) if fromlines else "")
+        elif mode == 2: # End
+            self.fileview.setPlainText("".join(tolines) if tolines else "")
+        else: # Diff
+            if fromlines is None: fromlines = []
+            if tolines is None: tolines = []
+
+            fromdate = time.ctime(os.stat(fromfile).st_mtime) if os.path.exists(fromfile) else ""
+            todate = time.ctime(os.stat(tofile).st_mtime) if os.path.exists(tofile) else ""
+
+            diff = difflib.unified_diff(
+                fromlines, tolines,
+                fromfile=fromfile, tofile=tofile,
+                fromfiledate=fromdate, tofiledate=todate
+            )
+            self.fileview.setPlainText("".join(diff))
 
     def get_lines_from_file(self, path):
         try:
-            return open(path, 'U').readlines()
-        except IsADirectoryError:
-            pass
-        except FileNotFoundError:
-            return ""
-        except UnicodeDecodeError:
-            pass
-        except PermissionError:
-            print("PermissionError")
-            pass  # TODO maybe display a dialog with the error?
-        return None
-
-    def _on_pathstree_selection_changed(self, selection):
-        (model, treeiter) = selection.get_selected()
-        if treeiter is not None and model[treeiter] != "":
-            # append file path to snapshot mountpoint
-            fromfile = self.beginpath + model[treeiter][2]
-            tofile = self.endpath + model[treeiter][2]
-
-            fromlines = self.get_lines_from_file(fromfile)
-            if fromlines is None:
-                return
-            elif fromlines == "":
-                fromfile = "New File"
-                fromdate = ""
-            else:
-                fromdate = time.ctime(os.stat(fromfile).st_mtime)
-
-            tolines = self.get_lines_from_file(tofile)
-            if tolines is None:
-                return
-            elif tolines == "":
-                tofile = "Deleted File"
-                todate = ""
-            else:
-                todate = time.ctime(os.stat(tofile).st_mtime)
-
-            languagemanager = GtkSource.LanguageManager()
-            currentview = self.choicesviewgroup.get_action("end").get_current_value()
-
-            if currentview == 0:  # show file from begin snapshot
-                self.sourcebuffer.set_language(languagemanager.get_language("text"))
-                self.sourcebuffer.set_text("".join(fromlines))
-            elif currentview == 1:  # show diff of file changes between snapshots
-                self.sourcebuffer.set_language(languagemanager.get_language("diff"))
-                difflines = difflib.unified_diff(fromlines,
-                                                 tolines,
-                                                 fromfile=fromfile,
-                                                 tofile=tofile,
-                                                 fromfiledate=fromdate,
-                                                 tofiledate=todate)
-                self.sourcebuffer.set_text("".join(difflines))
-            elif currentview == 2:  # show file from end snapshot
-                self.sourcebuffer.set_language(languagemanager.get_language("text"))
-                self.sourcebuffer.set_text("".join(tolines))
+            with open(path, 'r', errors='replace') as f:
+                return f.readlines()
+        except:
+            return None

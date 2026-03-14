@@ -1,41 +1,47 @@
-from snappergui import snapper
-import pkg_resources
-from gi.repository import Gtk
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit,
+                             QComboBox, QDialogButtonBox)
 
-
-class createConfig(object):
-    """docstring for createConfig"""
-
+class createConfig(QDialog):
     def __init__(self, parent):
-        super(createConfig, self).__init__()
-        builder = Gtk.Builder()
-        builder.add_from_file(pkg_resources.resource_filename("snappergui",
-                                                              "glade/createConfig.glade"))
-        self.dialog = builder.get_object("createConfig")
-        self.dialog.set_transient_for(parent)
-        builder.connect_signals(self)
+        super(createConfig, self).__init__(parent)
+        self.setWindowTitle("Create Configuration")
+        self.layout = QVBoxLayout(self)
 
-        self.name = ""
-        self.subvolume = ""
-        self.fstype = "btrfs"
-        self.template = "default"
+        # Name
+        self.layout.addWidget(QLabel("Name:"))
+        self.name_edit = QLineEdit()
+        self.layout.addWidget(self.name_edit)
 
-        builder.get_object("fsTypeCombo").set_active(0)
+        # Subvolume
+        self.layout.addWidget(QLabel("Subvolume (path):"))
+        self.subvolume_edit = QLineEdit()
+        self.layout.addWidget(self.subvolume_edit)
 
-    def on_name_changed(self, widget):
-        self.name = widget.get_chars(0, -1)
+        # FS Type
+        self.layout.addWidget(QLabel("Filesystem Type:"))
+        self.fstype_combo = QComboBox()
+        self.fstype_combo.addItems(["btrfs", "ext4", "lvm"])
+        self.layout.addWidget(self.fstype_combo)
 
-    def on_subvolume_changed(self, widget):
-        self.subvolume = widget.get_chars(0, -1)
+        # Template
+        self.layout.addWidget(QLabel("Template:"))
+        self.template_edit = QLineEdit("default")
+        self.layout.addWidget(self.template_edit)
 
-    def on_fstype_changed(self, widget):
-        self.fstype = widget.get_active_text()
+        # Buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addWidget(self.button_box)
 
-    def on_template_changed(self, widget):
-        self.template = widget.get_chars(0, -1)
+    @property
+    def name(self): return self.name_edit.text()
 
-    def run(self):
-        return self.dialog.run()
+    @property
+    def subvolume(self): return self.subvolume_edit.text()
 
-    def destroy(self):
-        self.dialog.destroy()
+    @property
+    def fstype(self): return self.fstype_combo.currentText()
+
+    @property
+    def template(self): return self.template_edit.text()

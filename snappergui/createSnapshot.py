@@ -1,83 +1,85 @@
 from snappergui import snapper
-import pkg_resources
-from gi.repository import Gtk, Gdk
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                             QLineEdit, QComboBox, QTreeView, QPushButton,
+                             QDialogButtonBox)
+from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtCore import Qt
 
-
-class createSnapshot(object):
+class createSnapshot(QDialog):
     TYPE_HERE = "<Type here>"
 
-    """docstring for createSnapshot"""
     def __init__(self, parent, config_name):
-        super(createSnapshot, self).__init__()
-        builder = Gtk.Builder()
-        builder.add_from_file(pkg_resources.resource_filename("snappergui",
-                                                              "glade/createSnapshot.glade"))
+        super(createSnapshot, self).__init__(parent)
+        self.setWindowTitle("Create Snapshot")
+        self.resize(400, 300)
 
-        self.dialog = builder.get_object("dialogCreate")
-        self.userdataTree = builder.get_object("userdatatreeview")
-        self.userdataTree.get_model().append([self.TYPE_HERE, ""])
-        self.dialog.set_transient_for(parent)
-        builder.connect_signals(self)
+        self.layout = QVBoxLayout(self)
 
-        self.config = ""
-        self.description = ""
-        self.cleanup = ""
-        self.userdata = {}
+        # Config
+        self.layout.addWidget(QLabel("Configuration:"))
+        self.configs_combo = QComboBox()
+        self.layout.addWidget(self.configs_combo)
 
-        configscombo = Gtk.ListStore(str)
-        combobox = builder.get_object("configsCombo")
-        combobox.set_model(configscombo)
-        for i, config in enumerate(snapper.ListConfigs()):
+        configs = snapper.ListConfigs()
+        for i, config in enumerate(configs):
             name = str(config[0])
-            configscombo.append([name])
+            self.configs_combo.addItem(name)
             if name == config_name:
-                combobox.set_active(i)
+                self.configs_combo.setCurrentIndex(i)
 
-        builder.get_object("cleanupcombo").set_active(0)
+        # Description
+        self.layout.addWidget(QLabel("Description:"))
+        self.description_edit = QLineEdit()
+        self.layout.addWidget(self.description_edit)
 
-    def on_config_changed(self,widget):
-        self.config = widget.get_model()[widget.get_active()][0]
+        # Cleanup
+        self.layout.addWidget(QLabel("Cleanup Algorithm:"))
+        self.cleanup_combo = QComboBox()
+        self.cleanup_combo.addItems(["None", "number", "timeline", "empty-pre-post"])
+        self.layout.addWidget(self.cleanup_combo)
 
-    def on_description_changed(self,widget):
-        self.description = widget.get_chars(0,-1)
+        # Userdata
+        self.layout.addWidget(QLabel("Userdata:"))
+        self.userdata_tree = QTreeView()
+        self.userdata_model = QStandardItemModel(0, 2)
+        self.userdata_model.setHorizontalHeaderLabels(["Key", "Value"])
+        self.userdata_tree.setModel(self.userdata_model)
+        self.layout.addWidget(self.userdata_tree)
 
-    def on_cleanup_changed(self,widget):
-        self.cleanup = widget.get_active_text()
-        if self.cleanup == "None":
-            self.cleanup = ""
+        self.userdata_model.appendRow([QStandardItem(self.TYPE_HERE), QStandardItem("")])
+        self.userdata_model.itemChanged.connect(self.on_item_changed)
 
-    def _on_key_press(self, widget, event):
-        if event.keyval == Gdk.KEY_Delete:
-            model, selected = self.userdataTree.get_selection().get_selected_rows()
-            if str(selected[0]) != str(len(model) - 1):
-                del model[selected[0]]
+        # Buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addWidget(self.button_box)
 
-    def _on_editing_started(self, cell, editable, path):
-        if editable.get_text() == self.TYPE_HERE:
-            editable.set_text("")
+    def on_item_changed(self, item):
+        if item.text() != "" and item.text() != self.TYPE_HERE:
+            # If we edited the "Type here" row, add a new one
+            if item.row() == self.userdata_model.rowCount() - 1:
+                 self.userdata_model.appendRow([QStandardItem(self.TYPE_HERE), QStandardItem("")])
 
-    def _on_name_edited(self, renderer, path, new_text):
-        userdatamodel = self.userdataTree.get_model()
-        if userdatamodel[path][0] == self.TYPE_HERE:
-            userdatamodel.append([self.TYPE_HERE, ""])
-        if new_text == "" or new_text == self.TYPE_HERE:
-            del userdatamodel[path]
-        else:
-            userdatamodel[path][0] = new_text
+    @property
+    def config(self):
+        return self.configs_combo.currentText()
 
-    def _on_value_edited(self, renderer, path, new_text):
-        userdatamodel = self.userdataTree.get_model()
-        userdatamodel[path][1] = new_text
+    @property
+    def description(self):
+        return self.description_edit.text()
 
-    def get_userdata_from_model(self, model):
-        for row in model:
-            if row[0] != self.TYPE_HERE:
-                self.userdata[row[0]] = row[1]
+    @property
+    def cleanup(self):
+        c = self.cleanup_combo.currentText()
+        return "" if c == "None" else c
 
-    def run(self):
-        response = self.dialog.run()
-        self.get_userdata_from_model( self.userdataTree.get_model() )
-        return response
-
-    def destroy(self):
-        self.dialog.destroy()
+    @property
+    def userdata(self):
+        data = {}
+        for i in range(self.userdata_model.rowCount()):
+            key = self.userdata_model.item(i, 0).text()
+            val = self.userdata_model.item(i, 1).text()
+            if key and key != self.TYPE_HERE:
+                data[key] = val
+        return data

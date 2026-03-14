@@ -1,62 +1,79 @@
 from snappergui import snapper
-import pkg_resources
-from gi.repository import Gtk
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTreeView, QDialogButtonBox, QLabel)
+from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtCore import Qt
 from pwd import getpwuid
 
-
-class deleteDialog(object):
-    """docstring for deleteDialog"""
-
+class deleteDialog(QDialog):
     def __init__(self, parent, config, snapshots):
-        super(deleteDialog, self).__init__()
-        builder = Gtk.Builder()
-        builder.add_from_file(pkg_resources.resource_filename("snappergui",
-                                                              "glade/deleteSnapshot.glade"))
+        super(deleteDialog, self).__init__(parent)
+        self.setWindowTitle("Delete Snapshots")
+        self.resize(400, 300)
+        self.layout = QVBoxLayout(self)
 
-        self.dialog = builder.get_object("dialogDelete")
-        self.dialog.set_transient_for(parent)
-        self.deletetreeview = builder.get_object("deletetreeview")
-        builder.connect_signals(self)
+        self.layout.addWidget(QLabel("Select snapshots to delete:"))
 
-        self.snapshots_list = snapshots
-        self.to_delete = snapshots
+        self.treeview = QTreeView()
+        self.model = QStandardItemModel(0, 4)
+        self.model.setHorizontalHeaderLabels(["Delete", "ID", "User", "Description"])
+        self.treeview.setModel(self.model)
+        self.layout.addWidget(self.treeview)
 
-        parents = []
-        self.deleteTreeStore = Gtk.TreeStore(bool, int, str, str)
-        for snapshot in snapshots:
-            snapinfo = snapper.GetSnapshot(config, snapshot)
-            # self.deleteTreeStore.append(self.get_row(snapinfo))
-            if snapinfo[1] == 1:  # Pre snapshot
-                parents.append(self.deleteTreeStore.append(None, self.get_row(snapinfo)))
-            elif snapinfo[1] == 2:  # Post snapshot
-                parent_node = None
-                for parent in parents:
-                    if self.deleteTreeStore.get_value(parent, 1) == snapinfo[2]:
-                        parent_node = parent
-                        break
-                self.deleteTreeStore.append(parent_node)
-            else:  # Single snapshot
-                self.deleteTreeStore.append(None, self.get_row(snapinfo))
-        self.deletetreeview.set_model(self.deleteTreeStore)
-        self.deletetreeview.expand_all()
+        self.to_delete = list(snapshots)
 
-    def get_row(self, snapshot):
-        return [True, snapshot[0], getpwuid(snapshot[4])[0], snapshot[5]]
+        parents = {}
+        for snap_id in snapshots:
+            try:
+                snapinfo = snapper.GetSnapshot(config, snap_id)
+                items = self.get_row_items(snapinfo)
 
-    def run(self):
-        response = self.dialog.run()
-        self.dialog.destroy()
-        return response
+                if snapinfo[1] == 1: # Pre
+                    self.model.appendRow(items)
+                    parents[snap_id] = items[0]
+                elif snapinfo[1] == 2: # Post
+                    parent_id = snapinfo[2]
+                    if parent_id in parents:
+                        parents[parent_id].appendRow(items)
+                    else:
+                        self.model.appendRow(items)
+                else: # Single
+                    self.model.appendRow(items)
+            except Exception as e:
+                print(f"Error loading snapshot {snap_id} for deletion: {e}")
 
-    def on_toggle_delete_snapshot(self, widget, path):
-        treeiter = self.deleteTreeStore.get_iter(path)
-        self.deleteTreeStore.set_value(treeiter,
-                                       False,
-                                       not (self.deleteTreeStore.get_value(treeiter, False)))
-        snapshot_num = self.deleteTreeStore.get_value(treeiter, True)
-        if self.deleteTreeStore.get_value(treeiter, False):
-            if snapshot_num not in self.to_delete:
-                self.to_delete.append(snapshot_num)
-        else:
-            if snapshot_num in self.to_delete:
-                self.to_delete.remove(snapshot_num)
+        self.treeview.expandAll()
+        self.model.itemChanged.connect(self.on_item_changed)
+
+        # Buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Yes | QDialogButtonBox.No)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addWidget(self.button_box)
+
+    def get_row_items(self, snapinfo):
+        check_item = QStandardItem()
+        check_item.setCheckable(True)
+        check_item.setCheckState(Qt.Checked)
+        check_item.setData(snapinfo[0], Qt.UserRole)
+
+        try:
+            user = getpwuid(snapinfo[4])[0]
+        except:
+            user = str(snapinfo[4])
+
+        return [
+            check_item,
+            QStandardItem(str(snapinfo[0])),
+            QStandardItem(user),
+            QStandardItem(snapinfo[5])
+        ]
+
+    def on_item_changed(self, item):
+        if item.column() == 0:
+            snap_id = item.data(Qt.UserRole)
+            if item.checkState() == Qt.Checked:
+                if snap_id not in self.to_delete:
+                    self.to_delete.append(snap_id)
+            else:
+                if snap_id in self.to_delete:
+                    self.to_delete.remove(snap_id)

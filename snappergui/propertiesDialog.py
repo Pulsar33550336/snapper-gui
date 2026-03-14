@@ -1,92 +1,151 @@
 from snappergui import snapper
-import pkg_resources, dbus
-from gi.repository import Gtk
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                             QLineEdit, QSpinBox, QCheckBox, QTabWidget,
+                             QScrollArea, QWidget, QGridLayout, QGroupBox,
+                             QDialogButtonBox, QMessageBox)
+from PySide6.QtCore import Qt
 
-
-class PropertiesTab(object):
-    """docstring for PropertiesTab"""
-
-    def __init__(self, config):
-        builder = Gtk.Builder()
-        builder.add_from_file(pkg_resources.resource_filename("snappergui",
-                                                              "glade/propertiesDialog.glade"))
-        self.configsGrid = builder.get_object("configsGrid")
+class PropertiesTab(QWidget):
+    def __init__(self, config_data):
+        super().__init__()
+        self.layout = QVBoxLayout(self)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.content = QWidget()
+        self.grid = QGridLayout(self.content)
 
         self.widgets = {}
-        for k, v in config[2].items():
-            widget = builder.get_object(k)
-            # Values are set here depending on their types
-            if type(widget) == Gtk.Entry:
-                widget.set_text(v)
-            elif type(widget) == Gtk.SpinButton:
-                adjustment = Gtk.Adjustment(value=int(v),
-                                            lower=0, upper=5000,
-                                            step_increment=1,
-                                            page_increment=10,
-                                            page_size=0)
-                widget.set_adjustment(adjustment)
-            elif type(widget) == Gtk.Switch:
-                if v == "yes":
-                    widget.set_active(True)
-                elif v == "no":
-                    widget.set_active(False)
-            else:
-                print("ERROR: Could not handle property \"%s\"." % k)
-            self.widgets[k] = widget
+        settings = config_data[2]
 
-    def get_current_value(self, setting):
-        widget = self.widgets[setting]
-        if type(widget) == Gtk.Entry:
-            return widget.get_text()
-        elif type(widget) == Gtk.Switch:
-            if widget.get_active():
-                return "yes"
-            else:
-                return "no"
-        elif type(widget) == Gtk.SpinButton:
-            return str(int(widget.get_value()))
+        row = 0
+        # Basic Settings
+        self.add_setting("SUBVOLUME", "Subvolume", settings.get("SUBVOLUME", ""), row, 0)
+        self.add_setting("FSTYPE", "Filesystem", settings.get("FSTYPE", ""), row, 2)
+        row += 1
+        self.add_setting("ALLOW_USERS", "Users", settings.get("ALLOW_USERS", ""), row, 0)
+        self.add_setting("ALLOW_GROUPS", "Groups", settings.get("ALLOW_GROUPS", ""), row, 2)
+        row += 1
+        self.add_bool_setting("TIMELINE_CREATE", "Timeline Create", settings.get("TIMELINE_CREATE", "no"), row, 0)
+        row += 1
 
+        # Timeline Group
+        timeline_group = QGroupBox("Timeline Cleanup")
+        timeline_grid = QGridLayout(timeline_group)
+        self.add_bool_setting("TIMELINE_CLEANUP", "Enabled", settings.get("TIMELINE_CLEANUP", "no"), 0, 0, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_HOURLY", "Hourly", settings.get("TIMELINE_LIMIT_HOURLY", "10"), 1, 0, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_DAILY", "Daily", settings.get("TIMELINE_LIMIT_DAILY", "10"), 1, 2, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_WEEKLY", "Weekly", settings.get("TIMELINE_LIMIT_WEEKLY", "0"), 2, 0, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_MONTHLY", "Monthly", settings.get("TIMELINE_LIMIT_MONTHLY", "10"), 2, 2, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_YEARLY", "Yearly", settings.get("TIMELINE_LIMIT_YEARLY", "10"), 3, 0, timeline_grid)
+        self.add_spin_setting("TIMELINE_MIN_AGE", "Min. Age", settings.get("TIMELINE_MIN_AGE", "0"), 3, 2, timeline_grid)
+        self.grid.addWidget(timeline_group, row, 0, 1, 4)
+        row += 1
 
-class propertiesDialog(object):
-    """docstring for propertiesDialog"""
+        # Number Group
+        number_group = QGroupBox("Number Cleanup")
+        number_grid = QGridLayout(number_group)
+        self.add_bool_setting("NUMBER_CLEANUP", "Enabled", settings.get("NUMBER_CLEANUP", "no"), 0, 0, number_grid)
+        self.add_setting("NUMBER_LIMIT", "Limit", settings.get("NUMBER_LIMIT", "50"), 1, 0, number_grid)
+        self.add_setting("NUMBER_LIMIT_IMPORTANT", "Limit Impor.", settings.get("NUMBER_LIMIT_IMPORTANT", "10"), 1, 2, number_grid)
+        self.add_spin_setting("NUMBER_MIN_AGE", "Min. Age", settings.get("NUMBER_MIN_AGE", "0"), 2, 0, number_grid)
+        self.grid.addWidget(number_group, row, 0, 1, 4)
+        row += 1
 
-    def __init__(self, widget, parent):
-        self.parent = parent
+        # Empty Pre/Post Group
+        empty_group = QGroupBox("Empty Pre/Post Cleanup")
+        empty_grid = QGridLayout(empty_group)
+        self.add_bool_setting("EMPTY_PRE_POST_CLEANUP", "Enabled", settings.get("EMPTY_PRE_POST_CLEANUP", "no"), 0, 0, empty_grid)
+        self.add_spin_setting("EMPTY_PRE_POST_MIN_AGE", "Min. Age", settings.get("EMPTY_PRE_POST_MIN_AGE", "0"), 1, 0, empty_grid)
+        self.grid.addWidget(empty_group, row, 0, 1, 4)
+        row += 1
 
-        builder = Gtk.Builder()
-        builder.add_from_file(pkg_resources.resource_filename("snappergui",
-                                                              "glade/propertiesDialog.glade"))
-        self.dialog = builder.get_object("dialogProperties")
-        self.notebook = builder.get_object("notebookProperties")
-        builder.connect_signals(self)
+        # Misc
+        self.add_bool_setting("BACKGROUND_COMPARISON", "Backg. Comparison", settings.get("BACKGROUND_COMPARISON", "no"), row, 0)
+        self.add_bool_setting("SYNC_ACL", "Sync Acl", settings.get("SYNC_ACL", "no"), row, 2)
 
-        self.dialog.set_transient_for(parent)
+        self.scroll.setWidget(self.content)
+        self.layout.addWidget(self.scroll)
 
-        self.tabs = {}
-        for config in snapper.ListConfigs():
-            currentTab = PropertiesTab(config)
-            self.tabs[str(config[0])] = currentTab
-            self.notebook.append_page(currentTab.configsGrid, Gtk.Label.new(config[0]))
-        self.notebook.show_all()
+    def add_setting(self, key, label, value, r, c, grid=None):
+        if grid is None: grid = self.grid
+        grid.addWidget(QLabel(label), r, c)
+        w = QLineEdit(str(value))
+        grid.addWidget(w, r, c+1)
+        self.widgets[key] = w
 
-    def get_changed_settings(self, config):
+    def add_bool_setting(self, key, label, value, r, c, grid=None):
+        if grid is None: grid = self.grid
+        w = QCheckBox(label)
+        w.setChecked(value == "yes")
+        grid.addWidget(w, r, c, 1, 2)
+        self.widgets[key] = w
+
+    def add_spin_setting(self, key, label, value, r, c, grid=None):
+        if grid is None: grid = self.grid
+        grid.addWidget(QLabel(label), r, c)
+        w = QSpinBox()
+        w.setRange(0, 5000)
+        try: w.setValue(int(value))
+        except: pass
+        grid.addWidget(w, r, c+1)
+        self.widgets[key] = w
+
+    def get_current_value(self, key):
+        w = self.widgets[key]
+        if isinstance(w, QLineEdit): return w.text()
+        if isinstance(w, QCheckBox): return "yes" if w.isChecked() else "no"
+        if isinstance(w, QSpinBox): return str(w.value())
+        return ""
+
+class propertiesDialog(QDialog):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setWindowTitle("Configurations properties")
+        self.resize(600, 500)
+        self.layout = QVBoxLayout(self)
+
+        self.tabs = QTabWidget()
+        self.layout.addWidget(self.tabs)
+
+        self.tab_widgets = {}
+        configs = snapper.ListConfigs()
+        for config in configs:
+            name = str(config[0])
+            tab = PropertiesTab(config)
+            self.tabs.addTab(tab, name)
+            self.tab_widgets[name] = tab
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.on_accept)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addWidget(self.button_box)
+
+    def get_changed_settings(self, config_name):
         changed = {}
-        for k, v in snapper.GetConfig(config)[2].items():
-            currentValue = self.tabs[config].get_current_value(k)
-            if currentValue and v != currentValue:
-                changed[k] = currentValue
+        current_config = None
+        for c in snapper.ListConfigs():
+            if str(c[0]) == config_name:
+                current_config = c
+                break
+
+        if not current_config: return changed
+
+        tab = self.tab_widgets[config_name]
+        for k, v in current_config[2].items():
+            if k in tab.widgets:
+                current_val = tab.get_current_value(k)
+                if current_val != v:
+                    changed[k] = current_val
         return changed
 
-    def on_response(self, widget, response):
-        if response == Gtk.ResponseType.OK:
-            currentConfig = str(snapper.ListConfigs()[self.notebook.get_current_page()][0])
+    def on_accept(self):
+        config_name = self.tabs.tabText(self.tabs.currentIndex())
+        changed = self.get_changed_settings(config_name)
+        if changed:
             try:
-                snapper.SetConfig(currentConfig, self.get_changed_settings(currentConfig))
-            except dbus.exceptions.DBusException as error:
-                if str(error).find("error.no_permission") != -1:
-                    self.dialog.destroy()
-                    dialog = Gtk.MessageDialog(self.parent, 0, Gtk.MessageType.WARNING,
-                                               Gtk.ButtonsType.OK,
-                                               "You don't have permission to edit configurations")
-                    dialog.run()
-                    dialog.destroy()
+                snapper.SetConfig(config_name, changed)
+                self.accept()
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Could not edit configuration: {e}")
+        else:
+            self.accept()

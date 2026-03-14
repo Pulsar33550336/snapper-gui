@@ -14,9 +14,8 @@ config = {
     'url': 'https://github.com/ricardo-vieira/snapper-gui',
     'download_url': 'https://github.com/ricardo-vieira/snapper-gui',
     'author_email': 'ricardo.vieira@ist.utl.pt',
-    'package_data': {"snappergui": ["glade/*.glade",
-                                    "icons/*.svg",
-                                    "ui/*.ui"]},
+    'package_data': {"snappergui": ["icons/*.svg"]},
+    'install_requires': ['PySide6'],
     'data_files': [('share/applications', ['snapper-gui.desktop'])],
     'entry_points': {'gui_scripts':
                          ['snapper-gui = snappergui.application:start_ui']}

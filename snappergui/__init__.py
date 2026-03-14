@@ -4,7 +4,12 @@ from PySide6.QtCore import QObject, Signal, Slot
 
 def unpack(val):
     if isinstance(val, QDBusArgument):
-        return unpack(val.asVariant())
+        # Prevent double unpacking if asVariant returns a QDBusArgument
+        # though usually it returns a QVariant which PySide converts
+        inner = val.asVariant()
+        if isinstance(inner, QDBusArgument):
+            return str(inner) # Fallback to avoid recursion
+        return unpack(inner)
     if isinstance(val, list):
         return [unpack(i) for i in val]
     if isinstance(val, tuple):
@@ -39,27 +44,27 @@ class SnapperInterface(QObject):
         # Connect D-Bus signals to our internal slots
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotCreated", self, "onSnapshotCreated(QString,uint)"
+            "SnapshotCreated", self.onSnapshotCreated
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotModified", self, "onSnapshotModified(QString,uint)"
+            "SnapshotModified", self.onSnapshotModified
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotsDeleted", self, "onSnapshotsDeleted(QString,QList<uint>)"
+            "SnapshotsDeleted", self.onSnapshotsDeleted
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigCreated", self, "onConfigCreated(QString)"
+            "ConfigCreated", self.onConfigCreated
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigModified", self, "onConfigModified()"
+            "ConfigModified", self.onConfigModified
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigDeleted", self, "onConfigDeleted()"
+            "ConfigDeleted", self.onConfigDeleted
         )
 
     @Slot(str, int)
@@ -100,10 +105,16 @@ class SnapperInterface(QObject):
 
     # API Methods
     def ListConfigs(self):
-        raw = self._call('ListConfigs')
+        try:
+            raw = self._call('ListConfigs')
+        except Exception as e:
+            print(f"Error calling ListConfigs: {e}")
+            return []
         if raw is None: return []
         # raw is list of (name, subvolume, attrs)
-        return [str(item[0]) for item in raw]
+        if isinstance(raw, list) and len(raw) > 0 and isinstance(raw[0], (list, tuple)):
+             return [str(item[0]) for item in raw]
+        return []
 
     def ListSnapshots(self, config: str):
         raw = self._call('ListSnapshots', str(config))

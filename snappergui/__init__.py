@@ -2,20 +2,20 @@ import sys
 from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage, QDBusArgument
 from PySide6.QtCore import QObject, Signal, Slot
 
-def unpack(val):
+def unpack(val, depth=0):
+    if depth > 10:
+        return str(val)
     if isinstance(val, QDBusArgument):
-        # Prevent double unpacking if asVariant returns a QDBusArgument
-        # though usually it returns a QVariant which PySide converts
         inner = val.asVariant()
         if isinstance(inner, QDBusArgument):
-            return str(inner) # Fallback to avoid recursion
-        return unpack(inner)
+            return str(inner)
+        return unpack(inner, depth + 1)
     if isinstance(val, list):
-        return [unpack(i) for i in val]
+        return [unpack(i, depth + 1) for i in val]
     if isinstance(val, tuple):
-        return tuple(unpack(i) for i in val)
+        return tuple(unpack(i, depth + 1) for i in val)
     if isinstance(val, dict):
-        return {k: unpack(v) for k, v in val.items()}
+        return {k: unpack(v, depth + 1) for k, v in val.items()}
     return val
 
 class SnapperInterface(QObject):
@@ -42,53 +42,54 @@ class SnapperInterface(QObject):
         )
 
         # Connect D-Bus signals to our internal slots
+        # Signature: connect(service, path, interface, name, receiver, slot)
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotCreated", self.onSnapshotCreated
+            "SnapshotCreated", self, "handleSnapshotCreated(QString,uint)"
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotModified", self.onSnapshotModified
+            "SnapshotModified", self, "handleSnapshotModified(QString,uint)"
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "SnapshotsDeleted", self.onSnapshotsDeleted
+            "SnapshotsDeleted", self, "handleSnapshotsDeleted(QString,QList<uint>)"
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigCreated", self.onConfigCreated
+            "ConfigCreated", self, "handleConfigCreated(QString)"
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigModified", self.onConfigModified
+            "ConfigModified", self, "handleConfigModified()"
         )
         self._bus.connect(
             "org.opensuse.Snapper", "/org/opensuse/Snapper", "org.opensuse.Snapper",
-            "ConfigDeleted", self.onConfigDeleted
+            "ConfigDeleted", self, "handleConfigDeleted()"
         )
 
     @Slot(str, int)
-    def onSnapshotCreated(self, config, num):
+    def handleSnapshotCreated(self, config, num):
         self.snapshotCreated.emit(config, num)
 
     @Slot(str, int)
-    def onSnapshotModified(self, config, num):
+    def handleSnapshotModified(self, config, num):
         self.snapshotModified.emit(config, num)
 
     @Slot(str, list)
-    def onSnapshotsDeleted(self, config, nums):
+    def handleSnapshotsDeleted(self, config, nums):
         self.snapshotsDeleted.emit(config, list(nums))
 
     @Slot(str)
-    def onConfigCreated(self, config):
+    def handleConfigCreated(self, config):
         self.configCreated.emit(config)
 
     @Slot()
-    def onConfigModified(self):
+    def handleConfigModified(self):
         self.configModified.emit()
 
     @Slot()
-    def onConfigDeleted(self):
+    def handleConfigDeleted(self):
         self.configDeleted.emit()
 
     def _call(self, method, *args):

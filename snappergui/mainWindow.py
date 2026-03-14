@@ -276,23 +276,12 @@ class SnapperGUI(QMainWindow):
 
     def init_dbus_signal_handlers(self):
         """Initialize DBus signal connections"""
-        # 暂时禁用信号连接直到DBus问题解决
-        print("DBus signals temporarily disabled")
-        return
-
-        # 原来的代码注释掉
-        """
-        signals = {
-            "SnapshotCreated": b"on_dbus_snapshot_created(QString,int)",
-            "SnapshotModified": b"on_dbus_snapshot_modified(QString,int)",
-            "SnapshotsDeleted": b"on_dbus_snapshots_deleted(QString,QList<int>)",
-            "ConfigCreated": b"on_dbus_config_created(QString)",
-            "ConfigModified": b"on_dbus_config_modified()",
-            "ConfigDeleted": b"on_dbus_config_deleted()"
-        }
-        for sig, slot in signals.items():
-            snapper.connect_to_signal(sig, self, slot)
-        """
+        snapper.snapshotCreated.connect(self.on_dbus_snapshot_created)
+        snapper.snapshotModified.connect(self.on_dbus_snapshot_modified)
+        snapper.snapshotsDeleted.connect(self.on_dbus_snapshots_deleted)
+        snapper.configCreated.connect(self.on_dbus_config_created)
+        snapper.configModified.connect(self.on_dbus_config_modified)
+        snapper.configDeleted.connect(self.on_dbus_config_deleted)
 
     @Slot(str, int)
     def on_dbus_snapshot_created(self, config, snapshot):

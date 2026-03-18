@@ -2,6 +2,7 @@ import sys
 import signal
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtCore import QTranslator, QLocale
 from snappergui.mainWindow import SnapperGUI
 from snappergui.propertiesDialog import propertiesDialog
 from snappergui.qml_bridge import SnapperBridge
@@ -18,7 +19,14 @@ class Application(QApplication):
         self.setApplicationName("SnapperGUI")
         self.setDesktopFileName("snappergui")
 
-        if "--qml" in args:
+        self.translator = QTranslator()
+        # Find translations in snappergui/i18n/snappergui_*.qm
+        i18n_path = os.path.join(os.path.dirname(__file__), "i18n")
+        if self.translator.load(QLocale(), "snappergui", "_", i18n_path):
+            self.installTranslator(self.translator)
+
+        # Default to QML
+        if "--widgets" not in args:
             self.engine = QQmlApplicationEngine()
             self.bridge = SnapperBridge()
             self.engine.rootContext().setContextProperty("snapper", self.bridge)

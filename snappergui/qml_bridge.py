@@ -1,6 +1,10 @@
-from PySide6.QtCore import QObject, Property, Signal, Slot, QAbstractListModel, QAbstractTableModel, Qt, QModelIndex
+from PySide6.QtCore import QObject, Property, Signal, Slot, QAbstractListModel, QAbstractTableModel, Qt, QModelIndex, QVariant
 from snappergui import snapper
 from time import strftime, localtime
+import os
+import subprocess
+import difflib
+import time as time_module
 from pwd import getpwuid
 
 class ConfigListModel(QAbstractListModel):
@@ -132,20 +136,77 @@ class SnapshotModel(QAbstractTableModel):
         roles[self.CleanupRole] = b"snapshotCleanup"
         return roles
 
-    @Slot(int)
+    @Slot(int, result=list)
     def getUserdata(self, row):
         if 0 <= row < len(self._snapshots):
             ud = self._snapshots[row]['userdata']
             return [{'key': k, 'value': v} for k, v in ud.items()]
         return []
 
+    @Slot(int, result=int)
+    def getSnapshotId(self, row):
+        if 0 <= row < len(self._snapshots):
+            return self._snapshots[row]['id']
+        return -1
+
+class ComparisonModel(QAbstractListModel):
+    PathRole = Qt.UserRole + 1
+    StatusRole = Qt.UserRole + 2
+    StatusTextRole = Qt.UserRole + 3
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._files = []
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._files)
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid() or not (0 <= index.row() < len(self._files)):
+            return None
+        f = self._files[index.row()]
+        if role == Qt.DisplayRole or role == self.PathRole:
+            return f['name']
+        if role == self.StatusRole:
+            return f['status']
+        if role == self.StatusTextRole:
+            return self.status_to_string(f['status'])
+        return None
+
+    def roleNames(self):
+        roles = super().roleNames()
+        roles[self.PathRole] = b"path"
+        roles[self.StatusRole] = b"status"
+        roles[self.StatusTextRole] = b"statusText"
+        return roles
+
+    def status_to_string(self, status):
+        if status & 1: return "Created"
+        if status & 2: return "Deleted"
+        if status > 0: return "Modified"
+        return "No changes"
+
+    @Slot(str, int, int)
+    def compare(self, config, begin, end):
+        self.beginResetModel()
+        try:
+            snapper.CreateComparison(config, begin, end)
+            self._files = snapper.GetFiles(config, begin, end)
+            snapper.DeleteComparison(config, begin, end)
+        except Exception as e:
+            print(f"Error comparing: {e}")
+            self._files = []
+        self.endResetModel()
+
 class SnapperBridge(QObject):
     configChanged = Signal()
+    message = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._configModel = ConfigListModel()
         self._snapshotModel = SnapshotModel()
+        self._comparisonModel = ComparisonModel()
         self._currentConfig = ""
 
         snapper.snapshotCreated.connect(self._on_snapshot_created)
@@ -160,6 +221,10 @@ class SnapperBridge(QObject):
     def snapshots(self):
         return self._snapshotModel
 
+    @Property(QObject, constant=True)
+    def comparison(self):
+        return self._comparisonModel
+
     @Property(str, notify=configChanged)
     def currentConfig(self):
         return self._currentConfig
@@ -173,11 +238,97 @@ class SnapperBridge(QObject):
 
     @Slot(str, str, str, 'QVariantMap')
     def createSnapshot(self, config, description, cleanup, userdata):
-        snapper.CreateSingleSnapshot(config, description, cleanup, userdata)
+        try:
+            snapper.CreateSingleSnapshot(config, description, cleanup, userdata)
+            self.message.emit(self.tr("Snapshot created for {}").format(config))
+        except Exception as e:
+            self.message.emit(self.tr("Error: {}").format(str(e)))
 
     @Slot(str, list)
     def deleteSnapshots(self, config, ids):
-        snapper.DeleteSnapshots(config, ids)
+        try:
+            snapper.DeleteSnapshots(config, ids)
+            self.message.emit(self.tr("Snapshots deleted from {}").format(config))
+        except Exception as e:
+            self.message.emit(self.tr("Error: {}").format(str(e)))
+
+    @Slot(str, str, str, str)
+    def createConfig(self, name, subvolume, fstype, template):
+        try:
+            snapper.CreateConfig(name, subvolume, fstype, template)
+            self.message.emit(self.tr("Configuration {} created").format(name))
+        except Exception as e:
+            self.message.emit(self.tr("Error: {}").format(str(e)))
+
+    @Slot(str, result=dict)
+    def getConfig(self, name):
+        try:
+            return snapper.GetConfig(name)
+        except Exception as e:
+            print(f"Error getting config: {e}")
+            return {}
+
+    @Slot(str, 'QVariantMap')
+    def setConfig(self, name, attrs):
+        try:
+            snapper.SetConfig(name, attrs)
+            self.message.emit(self.tr("Configuration {} updated").format(name))
+        except Exception as e:
+            self.message.emit(self.tr("Error: {}").format(str(e)))
+
+    @Slot(str, int)
+    def openSnapshotFolder(self, config, snap_id):
+        try:
+            mountpoint = snapper.GetMountPoint(config, snap_id)
+            snapshot_data = snapper.GetSnapshot(config, snap_id)
+            if snapshot_data[6] != '':
+                 snapper.MountSnapshot(config, snap_id, True)
+
+            subprocess.Popen(['xdg-open', mountpoint])
+            self.message.emit(self.tr("Opening {}").format(mountpoint))
+        except Exception as e:
+            self.message.emit(self.tr("Error: {}").format(str(e)))
+
+    @Slot(str, int, int, int, result=str)
+    def getDiff(self, config, begin, end, mode, rel_path):
+        # mode: 0=begin, 1=diff, 2=end
+        try:
+            begin_path = snapper.GetMountPoint(config, begin)
+            end_path = snapper.GetMountPoint(config, end)
+
+            fromfile = os.path.join(begin_path, rel_path.lstrip('/'))
+            tofile = os.path.join(end_path, rel_path.lstrip('/'))
+
+            def get_lines(path):
+                if not os.path.exists(path): return None, False
+                try:
+                    with open(path, 'rb') as f:
+                        if b'\x00' in f.read(8192): return None, True
+                    with open(path, 'r', errors='replace') as f:
+                        return f.readlines(), False
+                except: return None, False
+
+            if mode == 0:
+                lines, binary = get_lines(fromfile)
+                return "[Binary file]" if binary else ("".join(lines) if lines else "")
+            elif mode == 2:
+                lines, binary = get_lines(tofile)
+                return "[Binary file]" if binary else ("".join(lines) if lines else "")
+            else:
+                flines, fbin = get_lines(fromfile)
+                tlines, tbin = get_lines(tofile)
+                if fbin or tbin: return "[Binary file]"
+
+                flines = flines or []
+                tlines = tlines or []
+
+                fdate = time_module.ctime(os.stat(fromfile).st_mtime) if os.path.exists(fromfile) else ""
+                tdate = time_module.ctime(os.stat(tofile).st_mtime) if os.path.exists(tofile) else ""
+
+                diff = difflib.unified_diff(flines, tlines, fromfile=fromfile, tofile=tofile, fromfiledate=fdate, tofiledate=tdate)
+                return "".join(diff)
+        except Exception as e:
+            return f"Error: {e}"
 
     def _on_snapshot_created(self, config, num):
         if config == self._currentConfig:

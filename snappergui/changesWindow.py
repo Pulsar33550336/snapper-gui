@@ -57,7 +57,7 @@ class changesWindow(QMainWindow):
 
     def __init__(self, config, begin, end):
         super(changesWindow, self).__init__()
-        self.setWindowTitle(self.tr("Changes: %1 -> %2").arg(str(begin)).arg(str(end)))
+        self.setWindowTitle(self.tr("Changes: %1 -> %2").replace("%1", str(begin)).replace("%2", str(end)))
         self.resize(800, 600)
 
         self.config = config
@@ -140,7 +140,7 @@ class changesWindow(QMainWindow):
             self.add_path_to_tree(str(entry['name']), int(entry['status']), files_tree)
 
         self.populate_path_model(files_tree)
-        self.statusbar.showMessage(self.tr("%1 files changed.").arg(len(dbus_array)))
+        self.statusbar.showMessage(self.tr("%1 files changed.").replace("%1", str(len(dbus_array))))
         snapper.DeleteComparison(self.config, self.snapshot_begin, self.snapshot_end)
 
     def add_path_to_tree(self, path, status, tree):

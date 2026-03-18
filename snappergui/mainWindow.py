@@ -259,7 +259,7 @@ class SnapperGUI(QMainWindow):
 
             subprocess.Popen(['xdg-open', mountpoint])
             self.statusbar.showMessage(self.tr("The mount point for the snapshot %1 from %2 is %3")
-                                      .arg(str(snap_id)).arg(config).arg(mountpoint))
+                                      .replace("%1", str(snap_id)).replace("%2", config).replace("%3", mountpoint))
 
     def on_viewchanges_clicked(self):
         config = self.get_current_config()
@@ -290,7 +290,7 @@ class SnapperGUI(QMainWindow):
 
     @Slot(str, int)
     def on_dbus_snapshot_created(self, config, snapshot):
-        self.statusbar.showMessage(self.tr("Snapshot %1 created for %2").arg(str(snapshot)).arg(config))
+        self.statusbar.showMessage(self.tr("Snapshot %1 created for %2").replace("%1", str(snapshot)).replace("%2", config))
         if config in self.configView:
             self.configView[config].add_snapshot_to_tree(snapshot)
 
@@ -301,7 +301,7 @@ class SnapperGUI(QMainWindow):
     @Slot(str, list)
     def on_dbus_snapshots_deleted(self, config, snapshots):
         snaps_str = " ".join(map(str, snapshots))
-        self.statusbar.showMessage(self.tr("Snapshots deleted from %1: %2").arg(config).arg(snaps_str))
+        self.statusbar.showMessage(self.tr("Snapshots deleted from %1: %2").replace("%1", config).replace("%2", snaps_str))
         if config in self.configView:
             for deleted in snapshots:
                 self.configView[config].remove_snapshot_from_tree(deleted)
@@ -312,7 +312,7 @@ class SnapperGUI(QMainWindow):
         self.configView[config] = view
         self.tabs.addTab(view, config)
         view.selectionModel().selectionChanged.connect(self.on_snapshots_selection_changed)
-        self.statusbar.showMessage(self.tr("Created new configuration %1").arg(config), 5000)
+        self.statusbar.showMessage(self.tr("Created new configuration %1").replace("%1", config), 5000)
 
     @Slot()
     def on_dbus_config_modified(self, *args):

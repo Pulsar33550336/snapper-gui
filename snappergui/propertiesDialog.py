@@ -146,6 +146,6 @@ class propertiesDialog(QDialog):
                 snapper.SetConfig(config_name, changed)
                 self.accept()
             except Exception as e:
-                QMessageBox.warning(self, self.tr("Error"), self.tr("Could not edit configuration: %1").arg(str(e)))
+                QMessageBox.warning(self, self.tr("Error"), self.tr("Could not edit configuration: %1").replace("%1", str(e)))
         else:
             self.accept()

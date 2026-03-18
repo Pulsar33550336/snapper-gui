@@ -4,27 +4,27 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit,
 class createConfig(QDialog):
     def __init__(self, parent):
         super(createConfig, self).__init__(parent)
-        self.setWindowTitle("Create Configuration")
+        self.setWindowTitle(self.tr("Create Configuration"))
         self.layout = QVBoxLayout(self)
         
         # Name
-        self.layout.addWidget(QLabel("Name:"))
+        self.layout.addWidget(QLabel(self.tr("Name:")))
         self.name_edit = QLineEdit()
         self.layout.addWidget(self.name_edit)
         
         # Subvolume
-        self.layout.addWidget(QLabel("Subvolume (path):"))
+        self.layout.addWidget(QLabel(self.tr("Subvolume (path):")))
         self.subvolume_edit = QLineEdit()
         self.layout.addWidget(self.subvolume_edit)
         
         # FS Type
-        self.layout.addWidget(QLabel("Filesystem Type:"))
+        self.layout.addWidget(QLabel(self.tr("Filesystem Type:")))
         self.fstype_combo = QComboBox()
         self.fstype_combo.addItems(["btrfs", "ext4", "lvm"])
         self.layout.addWidget(self.fstype_combo)
         
         # Template
-        self.layout.addWidget(QLabel("Template:"))
+        self.layout.addWidget(QLabel(self.tr("Template:")))
         self.template_edit = QLineEdit("default")
         self.layout.addWidget(self.template_edit)
         

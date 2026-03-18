@@ -6,19 +6,19 @@ ApplicationWindow {
     visible: true
     width: 800
     height: 600
-    title: "SnapperGUI (QML)"
+    title: qsTr("SnapperGUI (QML)")
 
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
             ToolButton {
-                text: "Create Snapshot"
-                icon.name: "list-add"
+                text: qsTr("Create Snapshot")
+                icon.name: "document-new"
                 onClicked: createSnapshotDialog.open()
             }
             ToolButton {
-                text: "Delete"
-                icon.name: "list-remove"
+                text: qsTr("Delete")
+                icon.name: "edit-delete"
                 enabled: snapshotView.currentRow >= 0
                 onClicked: {
                     var id = snapper.snapshots.data(snapper.snapshots.index(snapshotView.currentRow, 0), 257) // IDRole
@@ -73,7 +73,7 @@ ApplicationWindow {
         ColumnLayout {
             SplitView.preferredHeight: 200
             Text {
-                text: "Userdata"
+                text: qsTr("Userdata")
                 font.bold: true
                 Layout.leftMargin: 10
                 Layout.topMargin: 5
@@ -93,11 +93,11 @@ ApplicationWindow {
 
     Dialog {
         id: createSnapshotDialog
-        title: "Create Snapshot"
+        title: qsTr("Create Snapshot")
         standardButtons: Dialog.Ok | Dialog.Cancel
         ColumnLayout {
-            TextField { id: descField; placeholderText: "Description" }
-            TextField { id: cleanupField; placeholderText: "Cleanup (number/timeline/empty)" }
+            TextField { id: descField; placeholderText: qsTr("Description") }
+            TextField { id: cleanupField; placeholderText: qsTr("Cleanup (number/timeline/empty)") }
         }
         onAccepted: {
             snapper.createSnapshot(snapper.currentConfig, descField.text, cleanupField.text, {})

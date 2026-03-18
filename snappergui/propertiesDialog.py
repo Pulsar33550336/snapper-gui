@@ -19,49 +19,49 @@ class PropertiesTab(QWidget):
         
         row = 0
         # Basic Settings
-        self.add_setting("SUBVOLUME", "Subvolume", settings.get("SUBVOLUME", ""), row, 0)
-        self.add_setting("FSTYPE", "Filesystem", settings.get("FSTYPE", ""), row, 2)
+        self.add_setting("SUBVOLUME", self.tr("Subvolume"), settings.get("SUBVOLUME", ""), row, 0)
+        self.add_setting("FSTYPE", self.tr("Filesystem"), settings.get("FSTYPE", ""), row, 2)
         row += 1
-        self.add_setting("ALLOW_USERS", "Users", settings.get("ALLOW_USERS", ""), row, 0)
-        self.add_setting("ALLOW_GROUPS", "Groups", settings.get("ALLOW_GROUPS", ""), row, 2)
+        self.add_setting("ALLOW_USERS", self.tr("Users"), settings.get("ALLOW_USERS", ""), row, 0)
+        self.add_setting("ALLOW_GROUPS", self.tr("Groups"), settings.get("ALLOW_GROUPS", ""), row, 2)
         row += 1
-        self.add_bool_setting("TIMELINE_CREATE", "Timeline Create", settings.get("TIMELINE_CREATE", "no"), row, 0)
+        self.add_bool_setting("TIMELINE_CREATE", self.tr("Timeline Create"), settings.get("TIMELINE_CREATE", "no"), row, 0)
         row += 1
         
         # Timeline Group
-        timeline_group = QGroupBox("Timeline Cleanup")
+        timeline_group = QGroupBox(self.tr("Timeline Cleanup"))
         timeline_grid = QGridLayout(timeline_group)
-        self.add_bool_setting("TIMELINE_CLEANUP", "Enabled", settings.get("TIMELINE_CLEANUP", "no"), 0, 0, timeline_grid)
-        self.add_setting("TIMELINE_LIMIT_HOURLY", "Hourly", settings.get("TIMELINE_LIMIT_HOURLY", "10"), 1, 0, timeline_grid)
-        self.add_setting("TIMELINE_LIMIT_DAILY", "Daily", settings.get("TIMELINE_LIMIT_DAILY", "10"), 1, 2, timeline_grid)
-        self.add_setting("TIMELINE_LIMIT_WEEKLY", "Weekly", settings.get("TIMELINE_LIMIT_WEEKLY", "0"), 2, 0, timeline_grid)
-        self.add_setting("TIMELINE_LIMIT_MONTHLY", "Monthly", settings.get("TIMELINE_LIMIT_MONTHLY", "10"), 2, 2, timeline_grid)
-        self.add_setting("TIMELINE_LIMIT_YEARLY", "Yearly", settings.get("TIMELINE_LIMIT_YEARLY", "10"), 3, 0, timeline_grid)
-        self.add_spin_setting("TIMELINE_MIN_AGE", "Min. Age", settings.get("TIMELINE_MIN_AGE", "0"), 3, 2, timeline_grid)
+        self.add_bool_setting("TIMELINE_CLEANUP", self.tr("Enabled"), settings.get("TIMELINE_CLEANUP", "no"), 0, 0, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_HOURLY", self.tr("Hourly"), settings.get("TIMELINE_LIMIT_HOURLY", "10"), 1, 0, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_DAILY", self.tr("Daily"), settings.get("TIMELINE_LIMIT_DAILY", "10"), 1, 2, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_WEEKLY", self.tr("Weekly"), settings.get("TIMELINE_LIMIT_WEEKLY", "0"), 2, 0, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_MONTHLY", self.tr("Monthly"), settings.get("TIMELINE_LIMIT_MONTHLY", "10"), 2, 2, timeline_grid)
+        self.add_setting("TIMELINE_LIMIT_YEARLY", self.tr("Yearly"), settings.get("TIMELINE_LIMIT_YEARLY", "10"), 3, 0, timeline_grid)
+        self.add_spin_setting("TIMELINE_MIN_AGE", self.tr("Min. Age"), settings.get("TIMELINE_MIN_AGE", "0"), 3, 2, timeline_grid)
         self.grid.addWidget(timeline_group, row, 0, 1, 4)
         row += 1
         
         # Number Group
-        number_group = QGroupBox("Number Cleanup")
+        number_group = QGroupBox(self.tr("Number Cleanup"))
         number_grid = QGridLayout(number_group)
-        self.add_bool_setting("NUMBER_CLEANUP", "Enabled", settings.get("NUMBER_CLEANUP", "no"), 0, 0, number_grid)
-        self.add_setting("NUMBER_LIMIT", "Limit", settings.get("NUMBER_LIMIT", "50"), 1, 0, number_grid)
-        self.add_setting("NUMBER_LIMIT_IMPORTANT", "Limit Impor.", settings.get("NUMBER_LIMIT_IMPORTANT", "10"), 1, 2, number_grid)
-        self.add_spin_setting("NUMBER_MIN_AGE", "Min. Age", settings.get("NUMBER_MIN_AGE", "0"), 2, 0, number_grid)
+        self.add_bool_setting("NUMBER_CLEANUP", self.tr("Enabled"), settings.get("NUMBER_CLEANUP", "no"), 0, 0, number_grid)
+        self.add_setting("NUMBER_LIMIT", self.tr("Limit"), settings.get("NUMBER_LIMIT", "50"), 1, 0, number_grid)
+        self.add_setting("NUMBER_LIMIT_IMPORTANT", self.tr("Limit Impor."), settings.get("NUMBER_LIMIT_IMPORTANT", "10"), 1, 2, number_grid)
+        self.add_spin_setting("NUMBER_MIN_AGE", self.tr("Min. Age"), settings.get("NUMBER_MIN_AGE", "0"), 2, 0, number_grid)
         self.grid.addWidget(number_group, row, 0, 1, 4)
         row += 1
         
         # Empty Pre/Post Group
-        empty_group = QGroupBox("Empty Pre/Post Cleanup")
+        empty_group = QGroupBox(self.tr("Empty Pre/Post Cleanup"))
         empty_grid = QGridLayout(empty_group)
-        self.add_bool_setting("EMPTY_PRE_POST_CLEANUP", "Enabled", settings.get("EMPTY_PRE_POST_CLEANUP", "no"), 0, 0, empty_grid)
-        self.add_spin_setting("EMPTY_PRE_POST_MIN_AGE", "Min. Age", settings.get("EMPTY_PRE_POST_MIN_AGE", "0"), 1, 0, empty_grid)
+        self.add_bool_setting("EMPTY_PRE_POST_CLEANUP", self.tr("Enabled"), settings.get("EMPTY_PRE_POST_CLEANUP", "no"), 0, 0, empty_grid)
+        self.add_spin_setting("EMPTY_PRE_POST_MIN_AGE", self.tr("Min. Age"), settings.get("EMPTY_PRE_POST_MIN_AGE", "0"), 1, 0, empty_grid)
         self.grid.addWidget(empty_group, row, 0, 1, 4)
         row += 1
         
         # Misc
-        self.add_bool_setting("BACKGROUND_COMPARISON", "Backg. Comparison", settings.get("BACKGROUND_COMPARISON", "no"), row, 0)
-        self.add_bool_setting("SYNC_ACL", "Sync Acl", settings.get("SYNC_ACL", "no"), row, 2)
+        self.add_bool_setting("BACKGROUND_COMPARISON", self.tr("Backg. Comparison"), settings.get("BACKGROUND_COMPARISON", "no"), row, 0)
+        self.add_bool_setting("SYNC_ACL", self.tr("Sync Acl"), settings.get("SYNC_ACL", "no"), row, 2)
         
         self.scroll.setWidget(self.content)
         self.layout.addWidget(self.scroll)
@@ -100,7 +100,7 @@ class PropertiesTab(QWidget):
 class propertiesDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
-        self.setWindowTitle("Configurations properties")
+        self.setWindowTitle(self.tr("Configurations properties"))
         self.resize(600, 500)
         self.layout = QVBoxLayout(self)
         
@@ -146,6 +146,6 @@ class propertiesDialog(QDialog):
                 snapper.SetConfig(config_name, changed)
                 self.accept()
             except Exception as e:
-                QMessageBox.warning(self, "Error", f"Could not edit configuration: {e}")
+                QMessageBox.warning(self, self.tr("Error"), self.tr("Could not edit configuration: %1").arg(str(e)))
         else:
             self.accept()

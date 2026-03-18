@@ -14,7 +14,8 @@ class snapshotsView(QTreeView):
         
         self._model = QStandardItemModel(0, 7)
         self._model.setHorizontalHeaderLabels([
-            "ID", "Type", "Pre ID", "Date", "User", "Description", "Cleanup"
+            self.tr("ID"), self.tr("Type"), self.tr("Pre ID"), self.tr("Date"),
+            self.tr("User"), self.tr("Description"), self.tr("Cleanup")
         ])
         self.setModel(self._model)
         self._model.itemChanged.connect(self.on_item_changed)
@@ -24,7 +25,8 @@ class snapshotsView(QTreeView):
     def update_view(self):
         self._model.clear()
         self._model.setHorizontalHeaderLabels([
-            "ID", "Type", "Pre ID", "Date", "User", "Description", "Cleanup"
+            self.tr("ID"), self.tr("Type"), self.tr("Pre ID"), self.tr("Date"),
+            self.tr("User"), self.tr("Description"), self.tr("Cleanup")
         ])
         
         try:
@@ -56,7 +58,7 @@ class snapshotsView(QTreeView):
     def create_snapshot_items(self, snapshot):
         # snapshot format from DBus: [id, type, pre_id, date, uid, description, cleanup, userdata_dict]
         if snapshot[3] == -1:
-            date_str = "Now"
+            date_str = self.tr("Now")
         else:
             date_str = strftime("%a %x %R", localtime(snapshot[3]))
         
@@ -65,7 +67,11 @@ class snapshotsView(QTreeView):
         except:
             user = str(snapshot[4])
 
-        type_str = {0: "single", 1: "pre", 2: "post"}.get(snapshot[1], str(snapshot[1]))
+        type_str = {
+            0: self.tr("single"),
+            1: self.tr("pre"),
+            2: self.tr("post")
+        }.get(snapshot[1], str(snapshot[1]))
 
         items = [
             QStandardItem(str(snapshot[0])),

@@ -7,15 +7,15 @@ from pwd import getpwuid
 class deleteDialog(QDialog):
     def __init__(self, parent, config, snapshots):
         super(deleteDialog, self).__init__(parent)
-        self.setWindowTitle("Delete Snapshots")
+        self.setWindowTitle(self.tr("Delete Snapshots"))
         self.resize(400, 300)
         self.layout = QVBoxLayout(self)
         
-        self.layout.addWidget(QLabel("Select snapshots to delete:"))
+        self.layout.addWidget(QLabel(self.tr("Select snapshots to delete:")))
         
         self.treeview = QTreeView()
         self.model = QStandardItemModel(0, 4)
-        self.model.setHorizontalHeaderLabels(["Delete", "ID", "User", "Description"])
+        self.model.setHorizontalHeaderLabels([self.tr("Delete"), self.tr("ID"), self.tr("User"), self.tr("Description")])
         self.treeview.setModel(self.model)
         self.layout.addWidget(self.treeview)
         

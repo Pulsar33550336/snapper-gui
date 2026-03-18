@@ -19,7 +19,7 @@ class SnapperGUI(QMainWindow):
     def __init__(self, app):
         super(SnapperGUI, self).__init__()
         self.app = app
-        self.setWindowTitle("SnapperGUI")
+        self.setWindowTitle(self.tr("SnapperGUI"))
         self.resize(700, 600)
         self.setWindowIcon(QIcon.fromTheme("drive-harddisk"))
 
@@ -30,43 +30,43 @@ class SnapperGUI(QMainWindow):
 
     def setup_ui(self):
         # Toolbar
-        self.toolbar = self.addToolBar("Main Toolbar")
+        self.toolbar = self.addToolBar(self.tr("Main Toolbar"))
         self.toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
 
         # New Snapshot / Config action
         self.new_menu = QMenu(self)
-        self.action_create_snapshot = QAction(QIcon.fromTheme("gtk-add"), "Create Snapshot", self)
-        self.action_create_snapshot.setToolTip("Create a new snapshot for the current configuration")
+        self.action_create_snapshot = QAction(QIcon.fromTheme("document-new"), self.tr("Create Snapshot"), self)
+        self.action_create_snapshot.setToolTip(self.tr("Create a new snapshot for the current configuration"))
         self.action_create_snapshot.triggered.connect(self.on_create_snapshot)
         self.new_menu.addAction(self.action_create_snapshot)
 
-        self.action_create_config = QAction("Create Configuration", self)
+        self.action_create_config = QAction(self.tr("Create Configuration"), self)
         self.action_create_config.triggered.connect(self.on_create_config)
         self.new_menu.addAction(self.action_create_config)
 
         self.btn_new = QToolButton()
-        self.btn_new.setText("New")
-        self.btn_new.setIcon(QIcon.fromTheme("gtk-add"))
+        self.btn_new.setText(self.tr("New"))
+        self.btn_new.setIcon(QIcon.fromTheme("list-add"))
         self.btn_new.setMenu(self.new_menu)
         self.btn_new.setPopupMode(QToolButton.MenuButtonPopup)
         self.btn_new.setDefaultAction(self.action_create_snapshot)
         self.toolbar.addWidget(self.btn_new)
 
         # Open action
-        self.action_open = QAction(QIcon.fromTheme("gtk-open"), "Open", self)
-        self.action_open.setToolTip("Open snapshot mountpoint")
+        self.action_open = QAction(QIcon.fromTheme("folder-open"), self.tr("Open"), self)
+        self.action_open.setToolTip(self.tr("Open snapshot mountpoint"))
         self.action_open.triggered.connect(self.on_open_snapshot_folder)
         self.toolbar.addAction(self.action_open)
 
         # Delete action
-        self.action_delete = QAction(QIcon.fromTheme("gtk-remove"), "Del", self)
-        self.action_delete.setToolTip("Delete selected snapshots")
+        self.action_delete = QAction(QIcon.fromTheme("edit-delete"), self.tr("Delete"), self)
+        self.action_delete.setToolTip(self.tr("Delete selected snapshots"))
         self.action_delete.triggered.connect(self.on_delete_snapshot)
         self.toolbar.addAction(self.action_delete)
 
         # View Changes action
-        self.action_changes = QAction(QIcon.fromTheme("gtk-file"), "Changes", self)
-        self.action_changes.setToolTip("Show which files have changed between selected snapshots")
+        self.action_changes = QAction(QIcon.fromTheme("text-x-generic"), self.tr("Changes"), self)
+        self.action_changes.setToolTip(self.tr("Show which files have changed between selected snapshots"))
         self.action_changes.triggered.connect(self.on_viewchanges_clicked)
         self.toolbar.addAction(self.action_changes)
 
@@ -84,7 +84,7 @@ class SnapperGUI(QMainWindow):
         self.splitter.addWidget(self.tabs)
 
         # Userdata section
-        self.userdata_group = QGroupBox("Userdata")
+        self.userdata_group = QGroupBox(self.tr("Userdata"))
         self.userdata_layout = QVBoxLayout(self.userdata_group)
         self.userdatatreeview = QTreeView()
         self.userdatatreeview.setHeaderHidden(True)
@@ -258,8 +258,8 @@ class SnapperGUI(QMainWindow):
                  snapper.MountSnapshot(config, snap_id, 'true')
 
             subprocess.Popen(['xdg-open', mountpoint])
-            self.statusbar.showMessage("The mount point for the snapshot %s from %s is %s" %
-                                      (snap_id, config, mountpoint))
+            self.statusbar.showMessage(self.tr("The mount point for the snapshot %1 from %2 is %3")
+                                      .arg(str(snap_id)).arg(config).arg(mountpoint))
 
     def on_viewchanges_clicked(self):
         config = self.get_current_config()
@@ -290,7 +290,7 @@ class SnapperGUI(QMainWindow):
 
     @Slot(str, int)
     def on_dbus_snapshot_created(self, config, snapshot):
-        self.statusbar.showMessage("Snapshot %s created for %s" % (str(snapshot), config))
+        self.statusbar.showMessage(self.tr("Snapshot %1 created for %2").arg(str(snapshot)).arg(config))
         if config in self.configView:
             self.configView[config].add_snapshot_to_tree(snapshot)
 
@@ -301,7 +301,7 @@ class SnapperGUI(QMainWindow):
     @Slot(str, list)
     def on_dbus_snapshots_deleted(self, config, snapshots):
         snaps_str = " ".join(map(str, snapshots))
-        self.statusbar.showMessage("Snapshots deleted from %s: %s" % (config, snaps_str))
+        self.statusbar.showMessage(self.tr("Snapshots deleted from %1: %2").arg(config).arg(snaps_str))
         if config in self.configView:
             for deleted in snapshots:
                 self.configView[config].remove_snapshot_from_tree(deleted)
@@ -312,7 +312,7 @@ class SnapperGUI(QMainWindow):
         self.configView[config] = view
         self.tabs.addTab(view, config)
         view.selectionModel().selectionChanged.connect(self.on_snapshots_selection_changed)
-        self.statusbar.showMessage("Created new configuration %s" % config, 5000)
+        self.statusbar.showMessage(self.tr("Created new configuration %1").arg(config), 5000)
 
     @Slot()
     def on_dbus_config_modified(self, *args):

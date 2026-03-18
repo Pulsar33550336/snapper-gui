@@ -38,8 +38,6 @@ class SnapshotModel(QAbstractTableModel):
     DescriptionRole = Qt.UserRole + 6
     CleanupRole = Qt.UserRole + 7
 
-    HEADERS = ["ID", "Type", "Pre ID", "Date", "User", "Description", "Cleanup"]
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._snapshots = []
@@ -62,12 +60,16 @@ class SnapshotModel(QAbstractTableModel):
                 self._snapshots = []
                 for s in raw_snapshots:
                     # s: [id, type, pre_id, date, uid, description, cleanup, userdata]
-                    date_str = "Now" if s[3] == -1 else strftime("%a %x %R", localtime(s[3]))
+                    date_str = self.tr("Now") if s[3] == -1 else strftime("%a %x %R", localtime(s[3]))
                     try:
                         user = getpwuid(s[4])[0]
                     except:
                         user = str(s[4])
-                    type_str = {0: "single", 1: "pre", 2: "post"}.get(s[1], str(s[1]))
+                    type_str = {
+                        0: self.tr("single"),
+                        1: self.tr("pre"),
+                        2: self.tr("post")
+                    }.get(s[1], str(s[1]))
 
                     self._snapshots.append({
                         'id': s[0],
@@ -88,7 +90,7 @@ class SnapshotModel(QAbstractTableModel):
         return len(self._snapshots)
 
     def columnCount(self, parent=QModelIndex()):
-        return len(self.HEADERS)
+        return 7
 
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid() or not (0 <= index.row() < len(self._snapshots)):
@@ -117,8 +119,12 @@ class SnapshotModel(QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            if 0 <= section < len(self.HEADERS):
-                return self.HEADERS[section]
+            headers = [
+                self.tr("ID"), self.tr("Type"), self.tr("Pre ID"), self.tr("Date"),
+                self.tr("User"), self.tr("Description"), self.tr("Cleanup")
+            ]
+            if 0 <= section < len(headers):
+                return headers[section]
         return None
 
     def roleNames(self):

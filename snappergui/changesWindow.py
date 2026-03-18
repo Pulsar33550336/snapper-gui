@@ -57,7 +57,7 @@ class changesWindow(QMainWindow):
 
     def __init__(self, config, begin, end):
         super(changesWindow, self).__init__()
-        self.setWindowTitle(f"Changes: {begin} -> {end}")
+        self.setWindowTitle(self.tr("Changes: %1 -> %2").arg(str(begin)).arg(str(end)))
         self.resize(800, 600)
 
         self.config = config
@@ -87,7 +87,7 @@ class changesWindow(QMainWindow):
         # Left: Paths Tree
         self.pathstreeview = QTreeView()
         self.path_model = QStandardItemModel()
-        self.path_model.setHorizontalHeaderLabels(["Name"])
+        self.path_model.setHorizontalHeaderLabels([self.tr("Name")])
         self.pathstreeview.setModel(self.path_model)
         self.pathstreeview.selectionModel().selectionChanged.connect(self.on_selection_changed)
         self.splitter.addWidget(self.pathstreeview)
@@ -101,7 +101,7 @@ class changesWindow(QMainWindow):
         self.btn_group = QButtonGroup(self)
 
         self.rb_begin = QRadioButton(str(self.snapshot_begin))
-        self.rb_diff = QRadioButton("Diff")
+        self.rb_diff = QRadioButton(self.tr("Diff"))
         self.rb_end = QRadioButton(str(self.snapshot_end))
         self.rb_diff.setChecked(True)
 
@@ -130,7 +130,7 @@ class changesWindow(QMainWindow):
         self.setStatusBar(self.statusbar)
 
     def load_changes(self):
-        self.statusbar.showMessage("Loading changes...")
+        self.statusbar.showMessage(self.tr("Loading changes..."))
         snapper.CreateComparison(self.config, self.snapshot_begin, self.snapshot_end)
         dbus_array = snapper.GetFiles(self.config, self.snapshot_begin, self.snapshot_end)
 
@@ -140,7 +140,7 @@ class changesWindow(QMainWindow):
             self.add_path_to_tree(str(entry['name']), int(entry['status']), files_tree)
 
         self.populate_path_model(files_tree)
-        self.statusbar.showMessage(f"{len(dbus_array)} files changed.")
+        self.statusbar.showMessage(self.tr("%1 files changed.").arg(len(dbus_array)))
         snapper.DeleteComparison(self.config, self.snapshot_begin, self.snapshot_end)
 
     def add_path_to_tree(self, path, status, tree):
@@ -189,19 +189,19 @@ class changesWindow(QMainWindow):
                 self.populate_path_model(child, item)
 
     def file_status_to_string(self, status):
-        if status & StatusFlags.CREATED: return "Created"
-        if status & StatusFlags.DELETED: return "Deleted"
+        if status & StatusFlags.CREATED: return self.tr("Created")
+        if status & StatusFlags.DELETED: return self.tr("Deleted")
         if status > 0:
             mods = []
-            if status & StatusFlags.ACL: mods.append("acl")
-            if status & StatusFlags.CONTENT: mods.append("content")
-            if status & StatusFlags.GROUP: mods.append("group")
-            if status & StatusFlags.OWNER: mods.append("owner")
-            if status & StatusFlags.XATTRS: mods.append("xattrs")
-            if status & StatusFlags.TYPE: mods.append("inode type")
-            if status & StatusFlags.PERMISSIONS: mods.append("permissions")
-            return "Modified: " + ", ".join(mods)
-        return "No changes"
+            if status & StatusFlags.ACL: mods.append(self.tr("acl"))
+            if status & StatusFlags.CONTENT: mods.append(self.tr("content"))
+            if status & StatusFlags.GROUP: mods.append(self.tr("group"))
+            if status & StatusFlags.OWNER: mods.append(self.tr("owner"))
+            if status & StatusFlags.XATTRS: mods.append(self.tr("xattrs"))
+            if status & StatusFlags.TYPE: mods.append(self.tr("inode type"))
+            if status & StatusFlags.PERMISSIONS: mods.append(self.tr("permissions"))
+            return self.tr("Modified: ") + ", ".join(mods)
+        return self.tr("No changes")
 
     def on_selection_changed(self, selected, deselected):
         self.update_file_view()
@@ -232,19 +232,19 @@ class changesWindow(QMainWindow):
         if mode == 0:  # Begin
             self.highlighter.setDocument(None)
             if from_binary:
-                self.fileview.setPlainText("[Binary file]")
+                self.fileview.setPlainText(self.tr("[Binary file]"))
             else:
                 self.fileview.setPlainText("".join(fromlines) if fromlines else "")
         elif mode == 2:  # End
             self.highlighter.setDocument(None)
             if to_binary:
-                self.fileview.setPlainText("[Binary file]")
+                self.fileview.setPlainText(self.tr("[Binary file]"))
             else:
                 self.fileview.setPlainText("".join(tolines) if tolines else "")
         else:  # Diff
             if from_binary or to_binary:
                 self.highlighter.setDocument(None)
-                self.fileview.setPlainText("[Binary file]")
+                self.fileview.setPlainText(self.tr("[Binary file]"))
                 return
             self.highlighter.setDocument(self.fileview.document())
             if fromlines is None: fromlines = []

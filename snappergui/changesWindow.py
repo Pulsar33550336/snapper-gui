@@ -13,6 +13,27 @@ from snappergui import snapper
 
 from PySide6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor
 
+from PySide6.QtCore import Qt, QTimer, QThread, Signal, QObject
+
+class ChangesWorker(QObject):
+    finished = Signal(list)
+    error = Signal(str)
+
+    def __init__(self, config, begin, end):
+        super().__init__()
+        self.config = config
+        self.begin = begin
+        self.end = end
+
+    def run(self):
+        try:
+            snapper.CreateComparison(self.config, self.begin, self.end)
+            dbus_array = snapper.GetFiles(self.config, self.begin, self.end)
+            snapper.DeleteComparison(self.config, self.begin, self.end)
+            self.finished.emit(list(dbus_array))
+        except Exception as e:
+            self.error.emit(str(e))
+
 class DiffHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -55,8 +76,9 @@ class StatusFlags:
 class changesWindow(QMainWindow):
     TreeNode = collections.namedtuple("TreeNode", "path, children, status, is_dir")
 
-    def __init__(self, config, begin, end):
-        super(changesWindow, self).__init__()
+    def __init__(self, parent, config, begin, end):
+        # super().__init__(parent)
+        super(changesWindow, self).__init__(parent)
         self.setWindowTitle(self.tr("Changes: %1 -> %2").replace("%1", str(begin)).replace("%2", str(end)))
         self.resize(800, 600)
 
@@ -131,17 +153,24 @@ class changesWindow(QMainWindow):
 
     def load_changes(self):
         self.statusbar.showMessage(self.tr("Loading changes..."))
-        snapper.CreateComparison(self.config, self.snapshot_begin, self.snapshot_end)
-        dbus_array = snapper.GetFiles(self.config, self.snapshot_begin, self.snapshot_end)
 
+        self.thread = QThread()
+        self.worker = ChangesWorker(self.config, self.snapshot_begin, self.snapshot_end)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.on_changes_loaded)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.error.connect(lambda e: self.statusbar.showMessage(f"Error: {e}"))
+        self.thread.start()
+
+    def on_changes_loaded(self, dbus_array):
         files_tree = changesWindow.TreeNode("/", {}, 0, True)
         for entry in dbus_array:
-            print(entry)
             self.add_path_to_tree(str(entry['name']), int(entry['status']), files_tree)
 
         self.populate_path_model(files_tree)
         self.statusbar.showMessage(self.tr("%1 files changed.").replace("%1", str(len(dbus_array))))
-        snapper.DeleteComparison(self.config, self.snapshot_begin, self.snapshot_end)
 
     def add_path_to_tree(self, path, status, tree):
         is_dir = os.path.isdir(self.beginpath + path) or os.path.isdir(self.endpath + path)

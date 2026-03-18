@@ -31,6 +31,8 @@ class SnapperGUI(QMainWindow):
     def setup_ui(self):
         # Toolbar
         self.toolbar = self.addToolBar(self.tr("Main Toolbar"))
+        self.toolbar.setMovable(False)
+        self.toolbar.setFloatable(False)
         self.toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
 
         # New Snapshot / Config action
@@ -269,14 +271,14 @@ class SnapperGUI(QMainWindow):
         if len(selected_rows) > 1:
             begin = view.model().data(selected_rows[0], Qt.UserRole)
             end = view.model().data(selected_rows[-1], Qt.UserRole)
-            self.changes_win = changesWindow(config, begin, end)
+            self.changes_win = changesWindow(self, config, begin, end)
             self.changes_win.show()
         elif len(selected_rows) == 1:
             index = selected_rows[0]
             if view.model().hasChildren(index):
                 begin = view.model().data(index, Qt.UserRole)
                 end = view.model().data(view.model().index(0, 0, index), Qt.UserRole)
-                self.changes_win = changesWindow(config, begin, end)
+                self.changes_win = changesWindow(self, config, begin, end)
                 self.changes_win.show()
 
     def init_dbus_signal_handlers(self):

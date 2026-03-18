@@ -45,7 +45,7 @@
     </message>
     <message>
         <source>Changes</source>
-        <translation>修改</translation>
+        <translation>查看更变</translation>
     </message>
     <message>
         <source>Show which files have changed between selected snapshots</source>

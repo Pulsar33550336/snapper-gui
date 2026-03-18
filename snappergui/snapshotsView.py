@@ -11,7 +11,7 @@ class snapshotsView(QTreeView):
         self.config = config
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed)
-        
+
         self._model = QStandardItemModel(0, 7)
         self._model.setHorizontalHeaderLabels([
             self.tr("ID"), self.tr("Type"), self.tr("Pre ID"), self.tr("Date"),
@@ -19,7 +19,7 @@ class snapshotsView(QTreeView):
         ])
         self.setModel(self._model)
         self._model.itemChanged.connect(self.on_item_changed)
-        
+
         self.update_view()
 
     def update_view(self):
@@ -28,7 +28,7 @@ class snapshotsView(QTreeView):
             self.tr("ID"), self.tr("Type"), self.tr("Pre ID"), self.tr("Date"),
             self.tr("User"), self.tr("Description"), self.tr("Cleanup")
         ])
-        
+
         try:
             snapshots_list = snapper.ListSnapshots(self.config)
         except Exception as e:
@@ -42,7 +42,7 @@ class snapshotsView(QTreeView):
         # type 1: pre, 2: post, 0: single
         for snapshot in snapshots_list:
             items = self.create_snapshot_items(snapshot)
-            
+
             if snapshot[1] == 1:  # Pre snapshot
                 self._model.appendRow(items)
                 parents[snapshot[0]] = items[0]
@@ -60,8 +60,8 @@ class snapshotsView(QTreeView):
         if snapshot[3] == -1:
             date_str = self.tr("Now")
         else:
-            date_str = strftime("%a %x %R", localtime(snapshot[3]))
-        
+            date_str = strftime("%Y-%m-%d %H:%M:%S", localtime(snapshot[3]))
+
         try:
             user = getpwuid(snapshot[4])[0]
         except:
@@ -82,28 +82,28 @@ class snapshotsView(QTreeView):
             QStandardItem(snapshot[5]),
             QStandardItem(snapshot[6])
         ]
-        
+
         # ID item stores the actual ID for easier retrieval
         items[0].setData(snapshot[0], Qt.UserRole)
-        
+
         # Make most items read-only
         for i in range(5):
             items[i].setEditable(False)
-            
+
         return items
 
     def add_snapshot_to_tree(self, snapshot_id):
         try:
             snapinfo = snapper.GetSnapshot(self.config, snapshot_id)
             items = self.create_snapshot_items(snapinfo)
-            
+
             if snapinfo[1] == 2: # Post
                 pre_id = snapinfo[2]
                 parent_item = self.find_item_by_id(pre_id)
                 if parent_item:
                     parent_item.appendRow(items)
                     return
-            
+
             self._model.appendRow(items)
         except Exception as e:
             print(f"Error adding snapshot to tree: {e}")
@@ -120,7 +120,7 @@ class snapshotsView(QTreeView):
     def find_item_by_id(self, snapshot_id, parent=None):
         if parent is None:
             parent = self._model.invisibleRootItem()
-            
+
         for i in range(parent.rowCount()):
             item = parent.child(i, 0)
             if item.data(Qt.UserRole) == snapshot_id:
@@ -133,25 +133,25 @@ class snapshotsView(QTreeView):
     def on_item_changed(self, item):
         if item.column() not in [5, 6]:
             return
-            
+
         row_id_item = self._model.item(item.row(), 0)
         if not row_id_item: # Could be a child item
             # Find the ID item in the same row
             parent = item.parent() or self._model.invisibleRootItem()
             row_id_item = parent.child(item.row(), 0)
-            
+
         snapshot_id = row_id_item.data(Qt.UserRole)
-        
+
         try:
             snapshot_info = snapper.GetSnapshot(self.config, snapshot_id)
             description = snapshot_info[5]
             cleanup = snapshot_info[6]
-            
+
             if item.column() == 5:
                 description = item.text()
             elif item.column() == 6:
                 cleanup = item.text()
-                
+
             snapper.SetSnapshot(self.config, snapshot_id, description, cleanup, snapshot_info[7])
         except Exception as e:
             print(f"Error setting snapshot properties: {e}")

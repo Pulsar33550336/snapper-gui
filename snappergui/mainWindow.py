@@ -1,7 +1,7 @@
 import subprocess
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QToolBar, QStatusBar, QTabWidget, QTreeView, 
-                             QSplitter, QGroupBox, QLabel, QToolButton, 
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                             QToolBar, QStatusBar, QTabWidget, QTreeView,
+                             QSplitter, QGroupBox, QLabel, QToolButton,
                              QMenu, QSizePolicy)
 from PySide6.QtGui import QAction, QIcon, QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, Slot
@@ -25,7 +25,7 @@ class SnapperGUI(QMainWindow):
 
         self.setup_ui()
         self.init_dbus_signal_handlers()
-        
+
         self.load_configs()
 
     def setup_ui(self):
@@ -202,8 +202,13 @@ class SnapperGUI(QMainWindow):
                 print(f"Error loading userdata: {e}")
 
     def on_create_snapshot(self):
+        print(self.get_current_config())
         dialog = createSnapshot(self, self.get_current_config())
         if dialog.exec():
+            print(f"Creating snapshot with config: '{dialog.config}' (type: {type(dialog.config)})")
+            print(f"Description: '{dialog.description}'")
+            print(f"Cleanup: '{dialog.cleanup}'")
+            print(f"Userdata: {dialog.userdata}")
             snapper.CreateSingleSnapshot(dialog.config,
                                          dialog.description,
                                          dialog.cleanup,
@@ -221,7 +226,7 @@ class SnapperGUI(QMainWindow):
         config = self.get_current_config()
         view = self.configView[config]
         selected_rows = view.selectionModel().selectedRows()
-        
+
         snapshots = []
         for index in selected_rows:
             snap_id = view.model().data(index, Qt.UserRole)
@@ -233,7 +238,7 @@ class SnapperGUI(QMainWindow):
                     child_id = view.model().data(view.model().index(i, 0, index), Qt.UserRole)
                     if child_id not in snapshots:
                         snapshots.append(child_id)
-        
+
         if snapshots:
             dialog = deleteDialog(self, config, snapshots)
             if dialog.exec() and dialog.to_delete:
@@ -251,7 +256,7 @@ class SnapperGUI(QMainWindow):
             snapshot_data = snapper.GetSnapshot(config, snap_id)
             if snapshot_data[6] != '':
                  snapper.MountSnapshot(config, snap_id, 'true')
-            
+
             subprocess.Popen(['xdg-open', mountpoint])
             self.statusbar.showMessage("The mount point for the snapshot %s from %s is %s" %
                                       (snap_id, config, mountpoint))
@@ -260,7 +265,7 @@ class SnapperGUI(QMainWindow):
         config = self.get_current_config()
         view = self.configView[config]
         selected_rows = view.selectionModel().selectedRows()
-        
+
         if len(selected_rows) > 1:
             begin = view.model().data(selected_rows[0], Qt.UserRole)
             end = view.model().data(selected_rows[-1], Qt.UserRole)
